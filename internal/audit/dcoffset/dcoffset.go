@@ -1,0 +1,107 @@
+package dcoffset
+
+import (
+	"encoding/binary"
+	"fmt"
+	"io"
+	"math"
+
+	"github.com/farcloser/primordium/fault"
+
+	"github.com/farcloser/haustorium/internal/types"
+)
+
+func Detect(r io.Reader, format types.PCMFormat) (*types.DCOffsetResult, error) {
+	bytesPerSample := int(format.BitDepth / 8)
+	frameSize := bytesPerSample * int(format.Channels)
+	buf := make([]byte, frameSize*4096)
+
+	numChannels := int(format.Channels)
+	channelSums := make([]float64, numChannels)
+	var samples uint64
+
+	var maxVal float64
+	switch format.BitDepth {
+	case types.Depth16:
+		maxVal = 32768.0
+	case types.Depth24:
+		maxVal = 8388608.0
+	case types.Depth32:
+		maxVal = 2147483648.0
+	}
+
+	for {
+		n, err := r.Read(buf)
+		if n > 0 {
+			completeFrames := (n / frameSize) * frameSize
+			data := buf[:completeFrames]
+
+			switch format.BitDepth {
+			case types.Depth16:
+				for i := 0; i < len(data); i += 2 {
+					ch := (i / 2) % numChannels
+					sample := float64(int16(binary.LittleEndian.Uint16(data[i:]))) / maxVal
+					channelSums[ch] += sample
+					samples++
+				}
+			case types.Depth24:
+				for i := 0; i < len(data); i += 3 {
+					ch := (i / 3) % numChannels
+					raw := int32(data[i]) | int32(data[i+1])<<8 | int32(data[i+2])<<16
+					if raw&0x800000 != 0 {
+						raw |= ^0xFFFFFF
+					}
+					sample := float64(raw) / maxVal
+					channelSums[ch] += sample
+					samples++
+				}
+			case types.Depth32:
+				for i := 0; i < len(data); i += 4 {
+					ch := (i / 4) % numChannels
+					sample := float64(int32(binary.LittleEndian.Uint32(data[i:]))) / maxVal
+					channelSums[ch] += sample
+					samples++
+				}
+			}
+		}
+
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("%w: %w", fault.ErrReadFailure, err)
+		}
+	}
+
+	if samples == 0 {
+		return &types.DCOffsetResult{
+			Offset:   0,
+			OffsetDb: -120.0,
+			Channels: make([]float64, numChannels),
+			Samples:  0,
+		}, nil
+	}
+
+	samplesPerChannel := float64(samples) / float64(numChannels)
+	channelOffsets := make([]float64, numChannels)
+	var totalOffset float64
+
+	for ch := 0; ch < numChannels; ch++ {
+		channelOffsets[ch] = channelSums[ch] / samplesPerChannel
+		totalOffset += math.Abs(channelOffsets[ch])
+	}
+	totalOffset /= float64(numChannels)
+
+	offsetDb := 20 * math.Log10(totalOffset)
+	if math.IsInf(offsetDb, -1) {
+		offsetDb = -120.0
+	}
+
+	return &types.DCOffsetResult{
+		Offset:   totalOffset,
+		OffsetDb: offsetDb,
+		Channels: channelOffsets,
+		Samples:  samples,
+	}, nil
+}

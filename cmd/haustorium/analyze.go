@@ -1,0 +1,230 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+
+	"github.com/urfave/cli/v3"
+
+	haustorium "github.com/farcloser/haustorium"
+	"github.com/farcloser/haustorium/internal/types"
+)
+
+var errInvalidArgCount = errors.New("expected exactly one argument: file path or \"-\" for stdin")
+
+func analyzeCommand() *cli.Command {
+	return &cli.Command{
+		Name:      "analyze",
+		Usage:     "Analyze raw PCM audio for quality issues",
+		ArgsUsage: "<file | ->",
+		Flags: []cli.Flag{
+			// PCMFormat flags (mandatory).
+			&cli.IntFlag{
+				Name:     "sample-rate",
+				Aliases:  []string{"s"},
+				Usage:    "Sample rate in Hz (e.g., 44100, 48000, 96000)",
+				Required: true,
+			},
+			&cli.IntFlag{
+				Name:     "bit-depth",
+				Aliases:  []string{"b"},
+				Usage:    "Bit depth (16, 24, or 32)",
+				Required: true,
+			},
+			&cli.IntFlag{
+				Name:     "channels",
+				Aliases:  []string{"c"},
+				Usage:    "Number of channels (1 = mono, 2 = stereo)",
+				Required: true,
+			},
+			&cli.IntFlag{
+				Name:  "expected-bit-depth",
+				Usage: "Expected bit depth for authenticity check (defaults to --bit-depth value)",
+			},
+
+			// Check selection.
+			&cli.StringFlag{
+				Name:    "checks",
+				Aliases: []string{"C"},
+				Usage:   "Comma-separated checks or presets: all, defects, loudness, clipping, truncation, fake-bit-depth, fake-sample-rate, lossy-transcode, dc-offset, fake-stereo, phase-issues, inverted-phase, channel-imbalance, silence-padding, hum, noise-floor, inter-sample-peaks, dynamic-range, dropouts",
+				Value:   "all",
+			},
+		},
+		Action: func(_ context.Context, cmd *cli.Command) error {
+			if cmd.NArg() != 1 {
+				return fmt.Errorf("%w: got %d", errInvalidArgCount, cmd.NArg())
+			}
+
+			// Parse PCM format.
+			format, err := parsePCMFormat(cmd)
+			if err != nil {
+				return err
+			}
+
+			// Parse checks.
+			checks, err := parseChecks(cmd.String("checks"))
+			if err != nil {
+				return err
+			}
+
+			opts := haustorium.DefaultOptions()
+			opts.Checks = checks
+
+			// Build reader factory.
+			source := cmd.Args().First()
+
+			factory, cleanup, err := readerFactory(source)
+			if err != nil {
+				return err
+			}
+			defer cleanup()
+
+			// Run analysis.
+			result, err := haustorium.Analyze(factory, format, opts)
+			if err != nil {
+				return fmt.Errorf("analysis failed: %w", err)
+			}
+
+			printResult(result)
+
+			return nil
+		},
+	}
+}
+
+func parsePCMFormat(cmd *cli.Command) (types.PCMFormat, error) {
+	sampleRate := cmd.Int("sample-rate")
+	bitDepth := cmd.Int("bit-depth")
+	channels := cmd.Int("channels")
+	expectedBitDepth := cmd.Int("expected-bit-depth")
+
+	bd, err := toBitDepth(int(bitDepth))
+	if err != nil {
+		return types.PCMFormat{}, fmt.Errorf("--bit-depth: %w", err)
+	}
+
+	ebd := bd
+	if expectedBitDepth > 0 {
+		ebd, err = toBitDepth(int(expectedBitDepth))
+		if err != nil {
+			return types.PCMFormat{}, fmt.Errorf("--expected-bit-depth: %w", err)
+		}
+	}
+
+	return types.PCMFormat{
+		SampleRate:       int(sampleRate),
+		BitDepth:         bd,
+		Channels:         uint(channels),
+		ExpectedBitDepth: ebd,
+	}, nil
+}
+
+var errInvalidBitDepth = errors.New("must be 16, 24, or 32")
+
+func toBitDepth(v int) (types.BitDepth, error) {
+	switch v {
+	case 16:
+		return types.Depth16, nil
+	case 24:
+		return types.Depth24, nil
+	case 32:
+		return types.Depth32, nil
+	default:
+		return 0, errInvalidBitDepth
+	}
+}
+
+//nolint:gochecknoglobals
+var checkNames = map[string]haustorium.Check{
+	"clipping":          haustorium.CheckClipping,
+	"truncation":        haustorium.CheckTruncation,
+	"fake-bit-depth":    haustorium.CheckFakeBitDepth,
+	"fake-sample-rate":  haustorium.CheckFakeSampleRate,
+	"lossy-transcode":   haustorium.CheckLossyTranscode,
+	"dc-offset":         haustorium.CheckDCOffset,
+	"fake-stereo":       haustorium.CheckFakeStereo,
+	"phase-issues":      haustorium.CheckPhaseIssues,
+	"inverted-phase":    haustorium.CheckInvertedPhase,
+	"channel-imbalance": haustorium.CheckChannelImbalance,
+	"silence-padding":   haustorium.CheckSilencePadding,
+	"hum":               haustorium.CheckHum,
+	"noise-floor":       haustorium.CheckNoiseFloor,
+	"inter-sample-peaks": haustorium.CheckInterSamplePeaks,
+	"loudness":          haustorium.CheckLoudness,
+	"dynamic-range":     haustorium.CheckDynamicRange,
+	"dropouts":          haustorium.CheckDropouts,
+	// Presets.
+	"all":     haustorium.ChecksAll,
+	"defects": haustorium.ChecksDefects,
+}
+
+func parseChecks(raw string) (haustorium.Check, error) {
+	var result haustorium.Check
+
+	for _, name := range strings.Split(raw, ",") {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+
+		check, ok := checkNames[name]
+		if !ok {
+			return 0, fmt.Errorf("unknown check %q", name)
+		}
+
+		result |= check
+	}
+
+	if result == 0 {
+		return haustorium.ChecksAll, nil
+	}
+
+	return result, nil
+}
+
+// readerFactory returns a factory that produces fresh readers for multi-pass analysis.
+// For files, it re-opens the file each time. For stdin, it buffers the entire input.
+func readerFactory(source string) (haustorium.ReaderFactory, func(), error) {
+	if source == "-" {
+		data, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return nil, func() {}, fmt.Errorf("reading stdin: %w", err)
+		}
+
+		factory := func() (io.Reader, error) {
+			return bytes.NewReader(data), nil
+		}
+
+		return factory, func() {}, nil
+	}
+
+	// Verify the file exists upfront.
+	if _, err := os.Stat(source); err != nil {
+		return nil, func() {}, fmt.Errorf("cannot access %s: %w", source, err)
+	}
+
+	factory := func() (io.Reader, error) {
+		return os.Open(source)
+	}
+
+	return factory, func() {}, nil
+}
+
+func printResult(result *haustorium.Result) {
+	fmt.Printf("Issues found: %d (worst severity: %s)\n\n", result.IssueCount, result.WorstSeverity)
+
+	for _, issue := range result.Issues {
+		marker := "  "
+		if issue.Detected {
+			marker = "!!"
+		}
+
+		fmt.Printf("%s [%s] %s (confidence: %.0f%%)\n",
+			marker, issue.Severity, issue.Summary, issue.Confidence*100)
+	}
+}
