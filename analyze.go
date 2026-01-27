@@ -1,3 +1,4 @@
+//nolint:wrapcheck
 package haustorium
 
 import (
@@ -939,7 +940,7 @@ func interpretResults(result *Result, opts Options) {
 		)
 
 		if detected {
-			freqs := ""
+			var freqs string
 			if result.Spectral.Has50HzHum && result.Spectral.Has60HzHum {
 				freqs = "50Hz and 60Hz"
 			} else if result.Spectral.Has50HzHum {

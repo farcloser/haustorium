@@ -34,6 +34,7 @@ func ExtractStream(
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	//nolint:gosec // we fine, gosec
 	cmd := exec.CommandContext(ctx, ffmpegPath,
 		"-i", "-",
 		"-map", "0:a:"+strconv.Itoa(streamIndex),

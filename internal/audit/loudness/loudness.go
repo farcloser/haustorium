@@ -85,6 +85,182 @@ func getChannelWeight(ch, numChannels int) float64 {
 	return 1.0
 }
 
+// drBlock holds peak and RMS for a 3-second analysis block.
+type drBlock struct {
+	peak float64
+	rms  float64
+}
+
+// meter holds all state for the loudness/DR measurement.
+type meter struct {
+	numChannels int
+	sampleRate  int
+	pre, rlb    biquad
+	preState    []biquadState
+	rlbState    []biquadState
+
+	// Window sizes in samples.
+	momentarySize int
+	shortTermSize int
+	blockSize     int
+	hopSize       int
+
+	// Ring buffers for windowed measurements.
+	momentaryBuf    []float64
+	shortTermBuf    []float64
+	momentaryPos    int
+	shortTermPos    int
+	momentarySum    float64
+	shortTermSum    float64
+	momentaryFilled int
+	shortTermFilled int
+
+	// DR calculation: 3s blocks.
+	drBlocks     []drBlock
+	blockSum     float64
+	blockPeak    float64
+	blockSamples int
+
+	// Loudness windows.
+	momentaryPowers []float64
+	shortTermPowers []float64
+	momentaryMax    float64
+	shortTermMax    float64
+
+	// Counters.
+	sampleCount int
+	totalFrames uint64
+
+	// Per-frame scratch buffer (reused, avoids allocation).
+	frameSamples []float64
+}
+
+func newMeter(sampleRate, numChannels int) *meter {
+	pre, rlb := getKWeightingFilters(sampleRate)
+
+	return &meter{
+		numChannels:  numChannels,
+		sampleRate:   sampleRate,
+		pre:          pre,
+		rlb:          rlb,
+		preState:     make([]biquadState, numChannels),
+		rlbState:     make([]biquadState, numChannels),
+		momentarySize: sampleRate * 400 / 1000,
+		shortTermSize: sampleRate * 3,
+		blockSize:     sampleRate * 3,
+		hopSize:       sampleRate * 100 / 1000,
+		momentaryBuf:  make([]float64, sampleRate*400/1000),
+		shortTermBuf:  make([]float64, sampleRate*3),
+		momentaryMax:  -120,
+		shortTermMax:  -120,
+		frameSamples:  make([]float64, numChannels),
+	}
+}
+
+// processFrame applies K-weighting, accumulates loudness and DR data for one frame.
+// The caller must fill m.frameSamples before calling this.
+func (m *meter) processFrame() {
+	var framePower, framePeak float64
+
+	for ch, sample := range m.frameSamples {
+		if abs := math.Abs(sample); abs > framePeak {
+			framePeak = abs
+		}
+
+		filtered := m.preState[ch].process(&m.pre, sample)
+		filtered = m.rlbState[ch].process(&m.rlb, filtered)
+
+		weight := getChannelWeight(ch, m.numChannels)
+		framePower += weight * filtered * filtered
+	}
+
+	// Update DR block.
+	m.blockSum += framePower / float64(m.numChannels)
+
+	if framePeak > m.blockPeak {
+		m.blockPeak = framePeak
+	}
+
+	m.blockSamples++
+
+	if m.blockSamples >= m.blockSize {
+		rms := math.Sqrt(m.blockSum / float64(m.blockSamples))
+		m.drBlocks = append(m.drBlocks, drBlock{m.blockPeak, rms})
+		m.blockSum = 0
+		m.blockPeak = 0
+		m.blockSamples = 0
+	}
+
+	// Update momentary window (ring buffer).
+	old := m.momentaryBuf[m.momentaryPos]
+	m.momentaryBuf[m.momentaryPos] = framePower
+	m.momentarySum = m.momentarySum - old + framePower
+
+	m.momentaryPos = (m.momentaryPos + 1) % m.momentarySize
+	if m.momentaryFilled < m.momentarySize {
+		m.momentaryFilled++
+	}
+
+	// Update short-term window (ring buffer).
+	old = m.shortTermBuf[m.shortTermPos]
+	m.shortTermBuf[m.shortTermPos] = framePower
+	m.shortTermSum = m.shortTermSum - old + framePower
+
+	m.shortTermPos = (m.shortTermPos + 1) % m.shortTermSize
+	if m.shortTermFilled < m.shortTermSize {
+		m.shortTermFilled++
+	}
+
+	m.sampleCount++
+	m.totalFrames++
+
+	// Every hop, calculate windowed loudness.
+	if m.sampleCount%m.hopSize == 0 {
+		if m.momentaryFilled == m.momentarySize {
+			momentaryLoudness := -0.691 + 10*math.Log10(m.momentarySum/float64(m.momentarySize))
+			m.momentaryPowers = append(m.momentaryPowers, m.momentarySum/float64(m.momentarySize))
+
+			if momentaryLoudness > m.momentaryMax {
+				m.momentaryMax = momentaryLoudness
+			}
+		}
+
+		if m.shortTermFilled == m.shortTermSize {
+			shortTermLoudness := -0.691 + 10*math.Log10(m.shortTermSum/float64(m.shortTermSize))
+			m.shortTermPowers = append(m.shortTermPowers, m.shortTermSum/float64(m.shortTermSize))
+
+			if shortTermLoudness > m.shortTermMax {
+				m.shortTermMax = shortTermLoudness
+			}
+		}
+	}
+}
+
+// finalize handles the final partial DR block and computes all results.
+func (m *meter) finalize() *types.LoudnessResult {
+	// Handle final partial DR block.
+	if m.blockSamples > m.sampleRate { // at least 1 second
+		rms := math.Sqrt(m.blockSum / float64(m.blockSamples))
+		m.drBlocks = append(m.drBlocks, drBlock{m.blockPeak, rms})
+	}
+
+	integratedLUFS := calculateIntegratedLoudness(m.momentaryPowers)
+	lra := calculateLoudnessRange(m.shortTermPowers)
+	drScore, drValue, peakDb, rmsDb := calculateDR(m.drBlocks)
+
+	return &types.LoudnessResult{
+		IntegratedLUFS: integratedLUFS,
+		ShortTermMax:   m.shortTermMax,
+		MomentaryMax:   m.momentaryMax,
+		LoudnessRange:  lra,
+		DRScore:        drScore,
+		DRValue:        drValue,
+		PeakDb:         peakDb,
+		RmsDb:          rmsDb,
+		Frames:         m.totalFrames,
+	}
+}
+
 func Analyze(r io.Reader, format types.PCMFormat) (*types.LoudnessResult, error) {
 	bytesPerSample := int(format.BitDepth / 8)
 	numChannels := int(format.Channels)
@@ -104,52 +280,7 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.LoudnessResult, error)
 		maxVal = 2147483648.0
 	}
 
-	// K-weighting filters per channel
-	pre, rlb := getKWeightingFilters(sampleRate)
-	preState := make([]biquadState, numChannels)
-	rlbState := make([]biquadState, numChannels)
-
-	// Window sizes in samples
-	momentarySize := sampleRate * 400 / 1000 // 400ms
-	shortTermSize := sampleRate * 3          // 3s
-	blockSize := sampleRate * 3              // 3s blocks for DR calculation
-	hopSize := sampleRate * 100 / 1000       // 100ms hop for LUFS windows
-
-	// Accumulators for gated loudness
-	var momentaryPowers []float64 // for integrated calculation
-
-	var shortTermPowers []float64 // for LRA calculation
-
-	var (
-		momentaryMax float64 = -120
-		shortTermMax float64 = -120
-	)
-
-	// Ring buffers for windowed measurements
-	momentaryBuf := make([]float64, momentarySize)
-	shortTermBuf := make([]float64, shortTermSize)
-
-	var (
-		momentaryPos, shortTermPos       int
-		momentarySum, shortTermSum       float64
-		momentaryFilled, shortTermFilled int
-	)
-
-	// DR calculation: 3s blocks
-	var (
-		drBlocks []struct {
-			peak float64
-			rms  float64
-		}
-		blockSum     float64
-		blockPeak    float64
-		blockSamples int
-	)
-
-	var (
-		sampleCount int
-		totalFrames uint64
-	)
+	m := newMeter(sampleRate, numChannels)
 
 	for {
 		n, err := r.Read(buf)
@@ -160,96 +291,14 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.LoudnessResult, error)
 			switch format.BitDepth {
 			case types.Depth16:
 				for i := 0; i < len(data); i += frameSize {
-					var (
-						framePower float64
-						framePeak  float64
-					)
-
 					for ch := range numChannels {
-						sample := float64(int16(binary.LittleEndian.Uint16(data[i+ch*2:]))) / maxVal
-
-						// Track peak for DR
-						if abs := math.Abs(sample); abs > framePeak {
-							framePeak = abs
-						}
-
-						// Apply K-weighting
-						filtered := preState[ch].process(&pre, sample)
-						filtered = rlbState[ch].process(&rlb, filtered)
-
-						// Accumulate weighted power
-						weight := getChannelWeight(ch, numChannels)
-						framePower += weight * filtered * filtered
+						m.frameSamples[ch] = float64(int16(binary.LittleEndian.Uint16(data[i+ch*2:]))) / maxVal
 					}
 
-					// Update DR block
-					blockSum += framePower / float64(numChannels)
-
-					if framePeak > blockPeak {
-						blockPeak = framePeak
-					}
-
-					blockSamples++
-
-					if blockSamples >= blockSize {
-						rms := math.Sqrt(blockSum / float64(blockSamples))
-						drBlocks = append(drBlocks, struct{ peak, rms float64 }{blockPeak, rms})
-						blockSum = 0
-						blockPeak = 0
-						blockSamples = 0
-					}
-
-					// Update momentary window (ring buffer)
-					old := momentaryBuf[momentaryPos]
-					momentaryBuf[momentaryPos] = framePower
-					momentarySum = momentarySum - old + framePower
-
-					momentaryPos = (momentaryPos + 1) % momentarySize
-					if momentaryFilled < momentarySize {
-						momentaryFilled++
-					}
-
-					// Update short-term window (ring buffer)
-					old = shortTermBuf[shortTermPos]
-					shortTermBuf[shortTermPos] = framePower
-					shortTermSum = shortTermSum - old + framePower
-
-					shortTermPos = (shortTermPos + 1) % shortTermSize
-					if shortTermFilled < shortTermSize {
-						shortTermFilled++
-					}
-
-					sampleCount++
-					totalFrames++
-
-					// Every hop, calculate windowed loudness
-					if sampleCount%hopSize == 0 {
-						if momentaryFilled == momentarySize {
-							momentaryLoudness := -0.691 + 10*math.Log10(momentarySum/float64(momentarySize))
-							momentaryPowers = append(momentaryPowers, momentarySum/float64(momentarySize))
-
-							if momentaryLoudness > momentaryMax {
-								momentaryMax = momentaryLoudness
-							}
-						}
-
-						if shortTermFilled == shortTermSize {
-							shortTermLoudness := -0.691 + 10*math.Log10(shortTermSum/float64(shortTermSize))
-							shortTermPowers = append(shortTermPowers, shortTermSum/float64(shortTermSize))
-
-							if shortTermLoudness > shortTermMax {
-								shortTermMax = shortTermLoudness
-							}
-						}
-					}
+					m.processFrame()
 				}
 			case types.Depth24:
 				for i := 0; i < len(data); i += frameSize {
-					var (
-						framePower float64
-						framePeak  float64
-					)
-
 					for ch := range numChannels {
 						offset := i + ch*3
 
@@ -258,153 +307,18 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.LoudnessResult, error)
 							raw |= ^0xFFFFFF
 						}
 
-						sample := float64(raw) / maxVal
-
-						if abs := math.Abs(sample); abs > framePeak {
-							framePeak = abs
-						}
-
-						filtered := preState[ch].process(&pre, sample)
-						filtered = rlbState[ch].process(&rlb, filtered)
-
-						weight := getChannelWeight(ch, numChannels)
-						framePower += weight * filtered * filtered
+						m.frameSamples[ch] = float64(raw) / maxVal
 					}
 
-					blockSum += framePower / float64(numChannels)
-
-					if framePeak > blockPeak {
-						blockPeak = framePeak
-					}
-
-					blockSamples++
-
-					if blockSamples >= blockSize {
-						rms := math.Sqrt(blockSum / float64(blockSamples))
-						drBlocks = append(drBlocks, struct{ peak, rms float64 }{blockPeak, rms})
-						blockSum = 0
-						blockPeak = 0
-						blockSamples = 0
-					}
-
-					old := momentaryBuf[momentaryPos]
-					momentaryBuf[momentaryPos] = framePower
-					momentarySum = momentarySum - old + framePower
-
-					momentaryPos = (momentaryPos + 1) % momentarySize
-					if momentaryFilled < momentarySize {
-						momentaryFilled++
-					}
-
-					old = shortTermBuf[shortTermPos]
-					shortTermBuf[shortTermPos] = framePower
-					shortTermSum = shortTermSum - old + framePower
-
-					shortTermPos = (shortTermPos + 1) % shortTermSize
-					if shortTermFilled < shortTermSize {
-						shortTermFilled++
-					}
-
-					sampleCount++
-					totalFrames++
-
-					if sampleCount%hopSize == 0 {
-						if momentaryFilled == momentarySize {
-							momentaryLoudness := -0.691 + 10*math.Log10(momentarySum/float64(momentarySize))
-							momentaryPowers = append(momentaryPowers, momentarySum/float64(momentarySize))
-
-							if momentaryLoudness > momentaryMax {
-								momentaryMax = momentaryLoudness
-							}
-						}
-
-						if shortTermFilled == shortTermSize {
-							shortTermLoudness := -0.691 + 10*math.Log10(shortTermSum/float64(shortTermSize))
-							shortTermPowers = append(shortTermPowers, shortTermSum/float64(shortTermSize))
-
-							if shortTermLoudness > shortTermMax {
-								shortTermMax = shortTermLoudness
-							}
-						}
-					}
+					m.processFrame()
 				}
 			case types.Depth32:
 				for i := 0; i < len(data); i += frameSize {
-					var (
-						framePower float64
-						framePeak  float64
-					)
-
 					for ch := range numChannels {
-						sample := float64(int32(binary.LittleEndian.Uint32(data[i+ch*4:]))) / maxVal
-
-						if abs := math.Abs(sample); abs > framePeak {
-							framePeak = abs
-						}
-
-						filtered := preState[ch].process(&pre, sample)
-						filtered = rlbState[ch].process(&rlb, filtered)
-
-						weight := getChannelWeight(ch, numChannels)
-						framePower += weight * filtered * filtered
+						m.frameSamples[ch] = float64(int32(binary.LittleEndian.Uint32(data[i+ch*4:]))) / maxVal
 					}
 
-					blockSum += framePower / float64(numChannels)
-
-					if framePeak > blockPeak {
-						blockPeak = framePeak
-					}
-
-					blockSamples++
-
-					if blockSamples >= blockSize {
-						rms := math.Sqrt(blockSum / float64(blockSamples))
-						drBlocks = append(drBlocks, struct{ peak, rms float64 }{blockPeak, rms})
-						blockSum = 0
-						blockPeak = 0
-						blockSamples = 0
-					}
-
-					old := momentaryBuf[momentaryPos]
-					momentaryBuf[momentaryPos] = framePower
-					momentarySum = momentarySum - old + framePower
-
-					momentaryPos = (momentaryPos + 1) % momentarySize
-					if momentaryFilled < momentarySize {
-						momentaryFilled++
-					}
-
-					old = shortTermBuf[shortTermPos]
-					shortTermBuf[shortTermPos] = framePower
-					shortTermSum = shortTermSum - old + framePower
-
-					shortTermPos = (shortTermPos + 1) % shortTermSize
-					if shortTermFilled < shortTermSize {
-						shortTermFilled++
-					}
-
-					sampleCount++
-					totalFrames++
-
-					if sampleCount%hopSize == 0 {
-						if momentaryFilled == momentarySize {
-							momentaryLoudness := -0.691 + 10*math.Log10(momentarySum/float64(momentarySize))
-							momentaryPowers = append(momentaryPowers, momentarySum/float64(momentarySize))
-
-							if momentaryLoudness > momentaryMax {
-								momentaryMax = momentaryLoudness
-							}
-						}
-
-						if shortTermFilled == shortTermSize {
-							shortTermLoudness := -0.691 + 10*math.Log10(shortTermSum/float64(shortTermSize))
-							shortTermPowers = append(shortTermPowers, shortTermSum/float64(shortTermSize))
-
-							if shortTermLoudness > shortTermMax {
-								shortTermMax = shortTermLoudness
-							}
-						}
-					}
+					m.processFrame()
 				}
 			}
 		}
@@ -418,32 +332,7 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.LoudnessResult, error)
 		}
 	}
 
-	// Handle final partial DR block
-	if blockSamples > sampleRate { // at least 1 second
-		rms := math.Sqrt(blockSum / float64(blockSamples))
-		drBlocks = append(drBlocks, struct{ peak, rms float64 }{blockPeak, rms})
-	}
-
-	// Calculate integrated loudness (EBU R128 gating)
-	integratedLUFS := calculateIntegratedLoudness(momentaryPowers)
-
-	// Calculate loudness range (LRA)
-	lra := calculateLoudnessRange(shortTermPowers)
-
-	// Calculate DR score
-	drScore, drValue, peakDb, rmsDb := calculateDR(drBlocks)
-
-	return &types.LoudnessResult{
-		IntegratedLUFS: integratedLUFS,
-		ShortTermMax:   shortTermMax,
-		MomentaryMax:   momentaryMax,
-		LoudnessRange:  lra,
-		DRScore:        drScore,
-		DRValue:        drValue,
-		PeakDb:         peakDb,
-		RmsDb:          rmsDb,
-		Frames:         totalFrames,
-	}, nil
+	return m.finalize(), nil
 }
 
 func calculateIntegratedLoudness(powers []float64) float64 {
@@ -540,7 +429,7 @@ func calculateLoudnessRange(powers []float64) float64 {
 	return high - low
 }
 
-func calculateDR(blocks []struct{ peak, rms float64 }) (score int, value, peakDb, rmsDb float64) {
+func calculateDR(blocks []drBlock) (score int, value, peakDb, rmsDb float64) {
 	if len(blocks) == 0 {
 		return 0, 0, -120, -120
 	}

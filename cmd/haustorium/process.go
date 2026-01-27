@@ -1,3 +1,4 @@
+//nolint:wrapcheck
 package main
 
 import (
@@ -54,7 +55,7 @@ func processCommand() *cli.Command {
 			}
 
 			filePath := cmd.Args().First()
-			streamIndex := int(cmd.Int("stream"))
+			streamIndex := cmd.Int("stream")
 
 			checks, err := parseChecks(cmd.String("checks"))
 			if err != nil {

@@ -1,3 +1,4 @@
+//nolint:wrapcheck
 package main
 
 import (
@@ -124,21 +125,21 @@ func parsePCMFormat(cmd *cli.Command) (types.PCMFormat, error) {
 	channels := cmd.Int("channels")
 	expectedBitDepth := cmd.Int("expected-bit-depth")
 
-	bd, err := toBitDepth(int(bitDepth))
+	bd, err := toBitDepth(bitDepth)
 	if err != nil {
 		return types.PCMFormat{}, fmt.Errorf("--bit-depth: %w", err)
 	}
 
 	ebd := bd
 	if expectedBitDepth > 0 {
-		ebd, err = toBitDepth(int(expectedBitDepth))
+		ebd, err = toBitDepth(expectedBitDepth)
 		if err != nil {
 			return types.PCMFormat{}, fmt.Errorf("--expected-bit-depth: %w", err)
 		}
 	}
 
 	return types.PCMFormat{
-		SampleRate:       int(sampleRate),
+		SampleRate:       sampleRate,
 		BitDepth:         bd,
 		Channels:         uint(channels),
 		ExpectedBitDepth: ebd,
@@ -446,7 +447,7 @@ func printVerbose(result *haustorium.Result) {
 		fmt.Printf("  Frames:          %d\n", r.Frames)
 
 		if len(r.Events) > 0 {
-			fmt.Printf("  Events:\n")
+			fmt.Print("  Events:\n")
 
 			for i, e := range r.Events {
 				switch e.Type {

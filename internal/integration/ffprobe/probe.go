@@ -1,3 +1,4 @@
+//nolint:tagliatelle
 package ffprobe
 
 import (
@@ -14,6 +15,7 @@ import (
 	"github.com/farcloser/haustorium/internal/integration/binary"
 )
 
+// Result contains the marshalled output of ffprobe.
 type Result struct {
 	Streams []Stream `json:"streams"`
 	Format  Format   `json:"format"`
@@ -130,7 +132,7 @@ type Stream struct {
 //	Metadata        int `json:"metadata"`
 //	Dependent       int `json:"dependent"`
 //	StillImage      int `json:"still_image"`
-//}
+// }
 
 // BaseFormat contains common format fields for display.
 type BaseFormat struct {

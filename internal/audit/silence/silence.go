@@ -84,17 +84,18 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.SilenceRe
 		rms := math.Sqrt(windowSumSq / float64(windowCount))
 		isSilent := rms < threshold
 
-		if isSilent && !inSilence {
+		switch {
+		case isSilent && !inSilence:
 			// Entering silence
 			inSilence = true
 			silenceStart = currentFrame - uint64(windowCount)
 			silenceSumSq = windowSumSq
 			silenceCount = uint64(windowCount)
-		} else if isSilent && inSilence {
+		case isSilent && inSilence:
 			// Continuing silence
 			silenceSumSq += windowSumSq
 			silenceCount += uint64(windowCount)
-		} else if !isSilent && inSilence {
+		case !isSilent && inSilence:
 			// Exiting silence
 			silenceEnd := currentFrame - uint64(windowCount)
 			silenceFrames := silenceEnd - silenceStart

@@ -31,6 +31,209 @@ func DefaultOptions() Options {
 	}
 }
 
+// scanner holds all per-channel state for the dropout detector.
+type scanner struct {
+	opts           Options
+	sampleRate     float64
+	dcWindowSize   int
+	minZeroSamples int
+	result         *types.DropoutResult
+	totalFrames    uint64
+	firstSample    bool
+
+	// Per-channel state.
+	prevSample    []float64
+	zeroStart     []int64
+	zeroStartRms  []float64
+	dcBuf         [][]float64
+	dcPos         []int
+	dcSum         []float64
+	dcFilled      []int
+	prevDC        []float64
+	dcInitialized []bool
+	sqBuf         [][]float64
+	sqPos         []int
+	sqSum         []float64
+	sqFilled      []int
+}
+
+func newScanner(opts Options, sampleRate float64, numChannels int) *scanner {
+	dcWindowSize := max(int(sampleRate*opts.DCWindowMs/1000), 1)
+	minZeroSamples := max(int(sampleRate*opts.ZeroRunMinMs/1000), 1)
+
+	s := &scanner{
+		opts:           opts,
+		sampleRate:     sampleRate,
+		dcWindowSize:   dcWindowSize,
+		minZeroSamples: minZeroSamples,
+		result:         &types.DropoutResult{},
+		firstSample:    true,
+
+		prevSample:    make([]float64, numChannels),
+		zeroStart:     make([]int64, numChannels),
+		zeroStartRms:  make([]float64, numChannels),
+		dcBuf:         make([][]float64, numChannels),
+		dcPos:         make([]int, numChannels),
+		dcSum:         make([]float64, numChannels),
+		dcFilled:      make([]int, numChannels),
+		prevDC:        make([]float64, numChannels),
+		dcInitialized: make([]bool, numChannels),
+		sqBuf:         make([][]float64, numChannels),
+		sqPos:         make([]int, numChannels),
+		sqSum:         make([]float64, numChannels),
+		sqFilled:      make([]int, numChannels),
+	}
+
+	for i := range s.zeroStart {
+		s.zeroStart[i] = -1
+	}
+
+	for ch := range numChannels {
+		s.dcBuf[ch] = make([]float64, dcWindowSize)
+		s.sqBuf[ch] = make([]float64, dcWindowSize)
+	}
+
+	return s
+}
+
+// processSample runs all detection logic for a single sample on a single channel.
+func (s *scanner) processSample(ch int, sample float64) {
+	if !s.firstSample {
+		// Delta detection.
+		delta := math.Abs(sample - s.prevSample[ch])
+		if delta > s.opts.DeltaThreshold &&
+			isDeltaDropout(s.prevSample[ch], sample, s.opts.DeltaNearZero) {
+			s.result.Events = append(s.result.Events, types.Event{
+				Frame:    s.totalFrames,
+				TimeSec:  float64(s.totalFrames) / s.sampleRate,
+				Channel:  ch,
+				Type:     types.EventDelta,
+				Severity: delta,
+			})
+			s.result.DeltaCount++
+		}
+
+		// Zero run detection.
+		if sample == 0 {
+			if s.zeroStart[ch] < 0 {
+				s.zeroStart[ch] = int64(s.totalFrames)
+				s.zeroStartRms[ch] = rmsDb(s.sqSum[ch], s.sqFilled[ch])
+			}
+		} else if s.zeroStart[ch] >= 0 {
+			runLength := int64(s.totalFrames) - s.zeroStart[ch]
+			if runLength >= int64(s.minZeroSamples) && s.zeroStartRms[ch] >= s.opts.ZeroRunQuietDb {
+				durationMs := float64(runLength) / s.sampleRate * 1000
+				s.result.Events = append(s.result.Events, types.Event{
+					Frame:      uint64(s.zeroStart[ch]),
+					TimeSec:    float64(s.zeroStart[ch]) / s.sampleRate,
+					Channel:    ch,
+					Type:       types.EventZeroRun,
+					Severity:   float64(runLength) / s.sampleRate,
+					DurationMs: durationMs,
+				})
+				s.result.ZeroRunCount++
+			}
+
+			s.zeroStart[ch] = -1
+		}
+	}
+
+	// DC offset tracking.
+	old := s.dcBuf[ch][s.dcPos[ch]]
+	s.dcBuf[ch][s.dcPos[ch]] = sample
+	s.dcSum[ch] = s.dcSum[ch] - old + sample
+
+	s.dcPos[ch] = (s.dcPos[ch] + 1) % s.dcWindowSize
+	if s.dcFilled[ch] < s.dcWindowSize {
+		s.dcFilled[ch]++
+	}
+
+	if s.dcFilled[ch] == s.dcWindowSize {
+		currentDC := s.dcSum[ch] / float64(s.dcWindowSize)
+		if s.dcInitialized[ch] {
+			dcDelta := math.Abs(currentDC - s.prevDC[ch])
+			if dcDelta > s.opts.DCJumpThreshold {
+				s.result.Events = append(s.result.Events, types.Event{
+					Frame:    s.totalFrames,
+					TimeSec:  float64(s.totalFrames) / s.sampleRate,
+					Channel:  ch,
+					Type:     types.EventDCJump,
+					Severity: dcDelta,
+				})
+				s.result.DCJumpCount++
+			}
+		}
+
+		s.prevDC[ch] = currentDC
+		s.dcInitialized[ch] = true
+	}
+
+	// RMS tracking (sum of squares).
+	oldSq := s.sqBuf[ch][s.sqPos[ch]]
+	sq := sample * sample
+	s.sqBuf[ch][s.sqPos[ch]] = sq
+	s.sqSum[ch] = s.sqSum[ch] - oldSq + sq
+
+	s.sqPos[ch] = (s.sqPos[ch] + 1) % s.dcWindowSize
+	if s.sqFilled[ch] < s.dcWindowSize {
+		s.sqFilled[ch]++
+	}
+
+	s.prevSample[ch] = sample
+}
+
+// endFrame advances the frame counter and clears the first-sample flag.
+func (s *scanner) endFrame() {
+	s.totalFrames++
+	s.firstSample = false
+}
+
+// flush emits any trailing zero runs still open at EOF.
+func (s *scanner) flush() {
+	for ch := range s.zeroStart {
+		if s.zeroStart[ch] >= 0 {
+			runLength := int64(s.totalFrames) - s.zeroStart[ch]
+			if runLength >= int64(s.minZeroSamples) && s.zeroStartRms[ch] >= s.opts.ZeroRunQuietDb {
+				durationMs := float64(runLength) / s.sampleRate * 1000
+				s.result.Events = append(s.result.Events, types.Event{
+					Frame:      uint64(s.zeroStart[ch]),
+					TimeSec:    float64(s.zeroStart[ch]) / s.sampleRate,
+					Channel:    ch,
+					Type:       types.EventZeroRun,
+					Severity:   float64(runLength) / s.sampleRate,
+					DurationMs: durationMs,
+				})
+				s.result.ZeroRunCount++
+			}
+		}
+	}
+}
+
+// finalize computes the worst severity and sets the frame count on the result.
+func (s *scanner) finalize() *types.DropoutResult {
+	s.flush()
+
+	var worstSeverity float64
+
+	for _, e := range s.result.Events {
+		if e.Type == types.EventDelta || e.Type == types.EventDCJump {
+			if e.Severity > worstSeverity {
+				worstSeverity = e.Severity
+			}
+		}
+	}
+
+	if worstSeverity > 0 {
+		s.result.WorstDb = 20 * math.Log10(worstSeverity)
+	} else {
+		s.result.WorstDb = -120
+	}
+
+	s.result.Frames = s.totalFrames
+
+	return s.result
+}
+
 // rmsDb returns the current RMS level in dB from a running sum-of-squares.
 func rmsDb(sqSum float64, sqFilled int) float64 {
 	if sqFilled == 0 {
@@ -96,47 +299,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 		maxVal = 2147483648.0
 	}
 
-	// Per-channel state
-	prevSample := make([]float64, numChannels)
-
-	zeroStart := make([]int64, numChannels) // frame where zero run started (-1 = not in run)
-	for i := range zeroStart {
-		zeroStart[i] = -1
-	}
-
-	// DC offset tracking (simple moving average)
-	dcWindowSize := max(int(sampleRate*opts.DCWindowMs/1000), 1)
-
-	dcBuf := make([][]float64, numChannels)
-	dcPos := make([]int, numChannels)
-	dcSum := make([]float64, numChannels)
-	dcFilled := make([]int, numChannels)
-	prevDC := make([]float64, numChannels)
-	dcInitialized := make([]bool, numChannels)
-
-	for ch := range numChannels {
-		dcBuf[ch] = make([]float64, dcWindowSize)
-	}
-
-	// RMS tracking for zero-run quiet detection (sum of squares over same window)
-	sqBuf := make([][]float64, numChannels)
-	sqPos := make([]int, numChannels)
-	sqSum := make([]float64, numChannels)
-	sqFilled := make([]int, numChannels)
-	zeroStartRms := make([]float64, numChannels)
-
-	for ch := range numChannels {
-		sqBuf[ch] = make([]float64, dcWindowSize)
-	}
-
-	minZeroSamples := max(int(sampleRate*opts.ZeroRunMinMs/1000), 1)
-
-	result := &types.DropoutResult{}
-
-	var (
-		totalFrames uint64
-		firstSample = true
-	)
+	s := newScanner(opts, sampleRate, numChannels)
 
 	for {
 		n, err := r.Read(buf)
@@ -149,95 +312,10 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 				for i := 0; i < len(data); i += frameSize {
 					for ch := range numChannels {
 						sample := float64(int16(binary.LittleEndian.Uint16(data[i+ch*2:]))) / maxVal
-
-						if !firstSample {
-							// Delta detection
-							delta := math.Abs(sample - prevSample[ch])
-							if delta > opts.DeltaThreshold &&
-								isDeltaDropout(prevSample[ch], sample, opts.DeltaNearZero) {
-								result.Events = append(result.Events, types.Event{
-									Frame:    totalFrames,
-									TimeSec:  float64(totalFrames) / sampleRate,
-									Channel:  ch,
-									Type:     types.EventDelta,
-									Severity: delta,
-								})
-								result.DeltaCount++
-							}
-
-							// Zero run detection
-							if sample == 0 {
-								if zeroStart[ch] < 0 {
-									zeroStart[ch] = int64(totalFrames)
-									zeroStartRms[ch] = rmsDb(sqSum[ch], sqFilled[ch])
-								}
-							} else {
-								if zeroStart[ch] >= 0 {
-									runLength := int64(totalFrames) - zeroStart[ch]
-									if runLength >= int64(minZeroSamples) && zeroStartRms[ch] >= opts.ZeroRunQuietDb {
-										durationMs := float64(runLength) / sampleRate * 1000
-										result.Events = append(result.Events, types.Event{
-											Frame:      uint64(zeroStart[ch]),
-											TimeSec:    float64(zeroStart[ch]) / sampleRate,
-											Channel:    ch,
-											Type:       types.EventZeroRun,
-											Severity:   float64(runLength) / sampleRate, // duration in seconds
-											DurationMs: durationMs,
-										})
-										result.ZeroRunCount++
-									}
-
-									zeroStart[ch] = -1
-								}
-							}
-						}
-
-						// DC offset tracking
-						old := dcBuf[ch][dcPos[ch]]
-						dcBuf[ch][dcPos[ch]] = sample
-						dcSum[ch] = dcSum[ch] - old + sample
-
-						dcPos[ch] = (dcPos[ch] + 1) % dcWindowSize
-						if dcFilled[ch] < dcWindowSize {
-							dcFilled[ch]++
-						}
-
-						if dcFilled[ch] == dcWindowSize {
-							currentDC := dcSum[ch] / float64(dcWindowSize)
-							if dcInitialized[ch] {
-								dcDelta := math.Abs(currentDC - prevDC[ch])
-								if dcDelta > opts.DCJumpThreshold {
-									result.Events = append(result.Events, types.Event{
-										Frame:    totalFrames,
-										TimeSec:  float64(totalFrames) / sampleRate,
-										Channel:  ch,
-										Type:     types.EventDCJump,
-										Severity: dcDelta,
-									})
-									result.DCJumpCount++
-								}
-							}
-
-							prevDC[ch] = currentDC
-							dcInitialized[ch] = true
-						}
-
-						// RMS tracking (sum of squares)
-						oldSq := sqBuf[ch][sqPos[ch]]
-						sq := sample * sample
-						sqBuf[ch][sqPos[ch]] = sq
-						sqSum[ch] = sqSum[ch] - oldSq + sq
-
-						sqPos[ch] = (sqPos[ch] + 1) % dcWindowSize
-						if sqFilled[ch] < dcWindowSize {
-							sqFilled[ch]++
-						}
-
-						prevSample[ch] = sample
+						s.processSample(ch, sample)
 					}
 
-					totalFrames++
-					firstSample = false
+					s.endFrame()
 				}
 			case types.Depth24:
 				for i := 0; i < len(data); i += frameSize {
@@ -250,181 +328,19 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 						}
 
 						sample := float64(raw) / maxVal
-
-						if !firstSample {
-							delta := math.Abs(sample - prevSample[ch])
-							if delta > opts.DeltaThreshold &&
-								isDeltaDropout(prevSample[ch], sample, opts.DeltaNearZero) {
-								result.Events = append(result.Events, types.Event{
-									Frame:    totalFrames,
-									TimeSec:  float64(totalFrames) / sampleRate,
-									Channel:  ch,
-									Type:     types.EventDelta,
-									Severity: delta,
-								})
-								result.DeltaCount++
-							}
-
-							if sample == 0 {
-								if zeroStart[ch] < 0 {
-									zeroStart[ch] = int64(totalFrames)
-									zeroStartRms[ch] = rmsDb(sqSum[ch], sqFilled[ch])
-								}
-							} else {
-								if zeroStart[ch] >= 0 {
-									runLength := int64(totalFrames) - zeroStart[ch]
-									if runLength >= int64(minZeroSamples) && zeroStartRms[ch] >= opts.ZeroRunQuietDb {
-										durationMs := float64(runLength) / sampleRate * 1000
-										result.Events = append(result.Events, types.Event{
-											Frame:      uint64(zeroStart[ch]),
-											TimeSec:    float64(zeroStart[ch]) / sampleRate,
-											Channel:    ch,
-											Type:       types.EventZeroRun,
-											Severity:   float64(runLength) / sampleRate,
-											DurationMs: durationMs,
-										})
-										result.ZeroRunCount++
-									}
-
-									zeroStart[ch] = -1
-								}
-							}
-						}
-
-						old := dcBuf[ch][dcPos[ch]]
-						dcBuf[ch][dcPos[ch]] = sample
-						dcSum[ch] = dcSum[ch] - old + sample
-
-						dcPos[ch] = (dcPos[ch] + 1) % dcWindowSize
-						if dcFilled[ch] < dcWindowSize {
-							dcFilled[ch]++
-						}
-
-						if dcFilled[ch] == dcWindowSize {
-							currentDC := dcSum[ch] / float64(dcWindowSize)
-							if dcInitialized[ch] {
-								dcDelta := math.Abs(currentDC - prevDC[ch])
-								if dcDelta > opts.DCJumpThreshold {
-									result.Events = append(result.Events, types.Event{
-										Frame:    totalFrames,
-										TimeSec:  float64(totalFrames) / sampleRate,
-										Channel:  ch,
-										Type:     types.EventDCJump,
-										Severity: dcDelta,
-									})
-									result.DCJumpCount++
-								}
-							}
-
-							prevDC[ch] = currentDC
-							dcInitialized[ch] = true
-						}
-
-						oldSq := sqBuf[ch][sqPos[ch]]
-						sq := sample * sample
-						sqBuf[ch][sqPos[ch]] = sq
-						sqSum[ch] = sqSum[ch] - oldSq + sq
-
-						sqPos[ch] = (sqPos[ch] + 1) % dcWindowSize
-						if sqFilled[ch] < dcWindowSize {
-							sqFilled[ch]++
-						}
-
-						prevSample[ch] = sample
+						s.processSample(ch, sample)
 					}
 
-					totalFrames++
-					firstSample = false
+					s.endFrame()
 				}
 			case types.Depth32:
 				for i := 0; i < len(data); i += frameSize {
 					for ch := range numChannels {
 						sample := float64(int32(binary.LittleEndian.Uint32(data[i+ch*4:]))) / maxVal
-
-						if !firstSample {
-							delta := math.Abs(sample - prevSample[ch])
-							if delta > opts.DeltaThreshold &&
-								isDeltaDropout(prevSample[ch], sample, opts.DeltaNearZero) {
-								result.Events = append(result.Events, types.Event{
-									Frame:    totalFrames,
-									TimeSec:  float64(totalFrames) / sampleRate,
-									Channel:  ch,
-									Type:     types.EventDelta,
-									Severity: delta,
-								})
-								result.DeltaCount++
-							}
-
-							if sample == 0 {
-								if zeroStart[ch] < 0 {
-									zeroStart[ch] = int64(totalFrames)
-									zeroStartRms[ch] = rmsDb(sqSum[ch], sqFilled[ch])
-								}
-							} else {
-								if zeroStart[ch] >= 0 {
-									runLength := int64(totalFrames) - zeroStart[ch]
-									if runLength >= int64(minZeroSamples) && zeroStartRms[ch] >= opts.ZeroRunQuietDb {
-										durationMs := float64(runLength) / sampleRate * 1000
-										result.Events = append(result.Events, types.Event{
-											Frame:      uint64(zeroStart[ch]),
-											TimeSec:    float64(zeroStart[ch]) / sampleRate,
-											Channel:    ch,
-											Type:       types.EventZeroRun,
-											Severity:   float64(runLength) / sampleRate,
-											DurationMs: durationMs,
-										})
-										result.ZeroRunCount++
-									}
-
-									zeroStart[ch] = -1
-								}
-							}
-						}
-
-						old := dcBuf[ch][dcPos[ch]]
-						dcBuf[ch][dcPos[ch]] = sample
-						dcSum[ch] = dcSum[ch] - old + sample
-
-						dcPos[ch] = (dcPos[ch] + 1) % dcWindowSize
-						if dcFilled[ch] < dcWindowSize {
-							dcFilled[ch]++
-						}
-
-						if dcFilled[ch] == dcWindowSize {
-							currentDC := dcSum[ch] / float64(dcWindowSize)
-							if dcInitialized[ch] {
-								dcDelta := math.Abs(currentDC - prevDC[ch])
-								if dcDelta > opts.DCJumpThreshold {
-									result.Events = append(result.Events, types.Event{
-										Frame:    totalFrames,
-										TimeSec:  float64(totalFrames) / sampleRate,
-										Channel:  ch,
-										Type:     types.EventDCJump,
-										Severity: dcDelta,
-									})
-									result.DCJumpCount++
-								}
-							}
-
-							prevDC[ch] = currentDC
-							dcInitialized[ch] = true
-						}
-
-						oldSq := sqBuf[ch][sqPos[ch]]
-						sq := sample * sample
-						sqBuf[ch][sqPos[ch]] = sq
-						sqSum[ch] = sqSum[ch] - oldSq + sq
-
-						sqPos[ch] = (sqPos[ch] + 1) % dcWindowSize
-						if sqFilled[ch] < dcWindowSize {
-							sqFilled[ch]++
-						}
-
-						prevSample[ch] = sample
+						s.processSample(ch, sample)
 					}
 
-					totalFrames++
-					firstSample = false
+					s.endFrame()
 				}
 			}
 		}
@@ -438,43 +354,5 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 		}
 	}
 
-	// Flush any trailing zero runs
-	for ch := range numChannels {
-		if zeroStart[ch] >= 0 {
-			runLength := int64(totalFrames) - zeroStart[ch]
-			if runLength >= int64(minZeroSamples) && zeroStartRms[ch] >= opts.ZeroRunQuietDb {
-				durationMs := float64(runLength) / sampleRate * 1000
-				result.Events = append(result.Events, types.Event{
-					Frame:      uint64(zeroStart[ch]),
-					TimeSec:    float64(zeroStart[ch]) / sampleRate,
-					Channel:    ch,
-					Type:       types.EventZeroRun,
-					Severity:   float64(runLength) / sampleRate,
-					DurationMs: durationMs,
-				})
-				result.ZeroRunCount++
-			}
-		}
-	}
-
-	// Find worst severity
-	var worstSeverity float64
-
-	for _, e := range result.Events {
-		if e.Type == types.EventDelta || e.Type == types.EventDCJump {
-			if e.Severity > worstSeverity {
-				worstSeverity = e.Severity
-			}
-		}
-	}
-
-	if worstSeverity > 0 {
-		result.WorstDb = 20 * math.Log10(worstSeverity)
-	} else {
-		result.WorstDb = -120
-	}
-
-	result.Frames = totalFrames
-
-	return result, nil
+	return s.finalize(), nil
 }
