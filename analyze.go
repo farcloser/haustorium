@@ -1001,11 +1001,11 @@ func interpretResults(result *Result, opts Options) {
 		case SeverityNone:
 			summary = "No dropouts or glitches"
 		case SeverityMild:
-			summary = fmt.Sprintf("%d discontinuities (%d jumps, %d zero runs, %d DC shifts)",
-				int(total), result.Dropout.DeltaCount, result.Dropout.ZeroRunCount, result.Dropout.DCJumpCount)
+			summary = fmt.Sprintf("%d discontinuities (%d jumps, %d zero runs, %d DC shifts; worst: %.1f dB)",
+				int(total), result.Dropout.DeltaCount, result.Dropout.ZeroRunCount, result.Dropout.DCJumpCount, result.Dropout.WorstDb)
 		case SeverityModerate:
-			summary = fmt.Sprintf("%d discontinuities (%d jumps, %d zero runs, %d DC shifts)",
-				int(total), result.Dropout.DeltaCount, result.Dropout.ZeroRunCount, result.Dropout.DCJumpCount)
+			summary = fmt.Sprintf("%d discontinuities (%d jumps, %d zero runs, %d DC shifts; worst: %.1f dB)",
+				int(total), result.Dropout.DeltaCount, result.Dropout.ZeroRunCount, result.Dropout.DCJumpCount, result.Dropout.WorstDb)
 		case SeveritySevere:
 			summary = fmt.Sprintf("%d discontinuities (%d jumps, %d zero runs, %d DC shifts; worst: %.1f dB)",
 				int(total), result.Dropout.DeltaCount, result.Dropout.ZeroRunCount, result.Dropout.DCJumpCount, result.Dropout.WorstDb)
