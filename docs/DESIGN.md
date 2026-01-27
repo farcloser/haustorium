@@ -47,26 +47,26 @@ High value, but can shell out to ffmpeg instead of implementing from scratch.
 
 ## Defect Detection
 
-| Defect                               | What It Is | Why It's Bad | Audiophile | Casual | Complexity |
-|--------------------------------------|-----------|--------------|:----------:|:------:|:-----------|
-| [DONE] **Clipping**                  | Consecutive samples at digital ceiling (0dBFS) | Audible distortion, harshness on peaks. Unrecoverable. | 🔴 Critical | 🟡 Medium | Easy |
-| [DONE] **Truncation**                | Abrupt ending without fade or silence | Indicates incomplete rip, corruption, or bad edit | 🔴 Critical | 🟠 High | Easy |
-| [DONE] **Lossy Transcode**           | Lossy source (MP3/AAC) re-encoded to lossless (FLAC) | Fraud. You paid for lossless, got upscaled garbage. | 🔴 Critical | 🟡 Medium | Medium — spectral analysis for brick wall cutoff |
-| [DONE] **Fake Hi-Res (Sample Rate)** | 44.1kHz upsampled to 96/192kHz | Fraud. No additional information, just larger files. | 🔴 Critical | 🟡 Medium | Medium — spectral analysis above Nyquist/2 |
-| [DONE] **Fake Hi-Res (Bit Depth)**   | 16-bit zero-padded to 24-bit | Fraud. Lower 8 bits are zeros. | 🔴 Critical | 🟢 Low | Easy |
-| [PARTLY] **Brickwalling**            | Extreme dynamic range compression (DR < 6) | Fatiguing, lifeless sound. The "loudness war" casualty. | 🔴 Critical | 🟡 Medium | Medium — RMS vs peak over windows |
-| [DONE] **Dropouts/Glitches**         | Brief interruptions or digital artifacts | Ripping errors, bad source, damaged files | 🔴 Critical | 🔴 Critical | Medium — statistical discontinuity detection |
-| [DONE] **DC Offset**                 | Constant voltage bias shifting waveform away from zero | Wastes headroom, causes clicks between tracks, stresses speakers | 🟠 High | 🟢 Low | Easy |
-| [DONE] **Fake Stereo**               | Identical L/R channels marketed as stereo | Deceptive. Wastes storage. | 🟠 High | 🟢 Low | Easy |
-| [DONE] **Phase Issues**              | L/R cancellation when summed to mono | Sounds hollow on mono systems, disappearing instruments | 🟠 High | 🟢 Low | Easy |
-| [DONE] **Inverted Phase**            | One channel 180° out of phase | Weird imaging, bass cancellation on mono sum | 🟠 High | 🟢 Low | Easy |
-| [DONE] **Inter-Sample Peaks**        | Overs that only appear after D/A reconstruction | Causes clipping in DACs. Invisible to naive peak meters. | 🟠 High | 🟢 Low | Medium — interpolation/upsampling |
-| **Click/Pop**                        | Transient spikes from vinyl damage or bad edits | Distracting, indicates source issues | 🟠 High | 🟠 High | Hard → **sox** |
-| [DONE] **60Hz Hum**                  | Mains frequency contamination | Poor recording/transfer, ground loop | 🟠 High | 🟡 Medium | Medium — FFT spike at 50/60Hz |
-| [DONE] **High Noise Floor**          | Excessive background noise/hiss | Poor source quality, bad transfer | 🟠 High | 🟡 Medium | Medium — RMS during quiet sections |
-| **Wow/Flutter**                      | Pitch variations from tape/vinyl transfer | Speed instability in analog source | 🟠 High | 🟢 Low | Hard → **aubio** |
-| [DONE] **Silence Padding**           | Excessive silence at start/end (>2-3 seconds) | Hidden tracks are fine; unintentional padding is sloppy | 🟡 Medium | 🟢 Low | Easy |
-| [DONE] **Channel Imbalance**         | L/R volume difference | Bad mastering, equipment issues | 🟡 Medium | 🟢 Low | Easy |
+| Defect                               | What It Is                                            | Why It's Bad | Audiophile | Casual | Complexity |
+|--------------------------------------|-------------------------------------------------------|--------------|:----------:|:------:|:-----------|
+| [DONE, HL] **Clipping**              | Consecutive samples at digital ceiling (0dBFS) | Audible distortion, harshness on peaks. Unrecoverable. | 🔴 Critical | 🟡 Medium | Easy |
+| [DONE, HL] **Truncation**                | Abrupt ending without fade or silence                 | Indicates incomplete rip, corruption, or bad edit | 🔴 Critical | 🟠 High | Easy |
+| [DONE, HL] **Lossy Transcode**           | Lossy source (MP3/AAC) re-encoded to lossless (FLAC)  | Fraud. You paid for lossless, got upscaled garbage. | 🔴 Critical | 🟡 Medium | Medium — spectral analysis for brick wall cutoff |
+| [DONE, HL] **Fake Hi-Res (Sample Rate)** | 44.1kHz upsampled to 96/192kHz                        | Fraud. No additional information, just larger files. | 🔴 Critical | 🟡 Medium | Medium — spectral analysis above Nyquist/2 |
+| [DONE, HL] **Fake Hi-Res (Bit Depth)**   | 16-bit zero-padded to 24-bit                          | Fraud. Lower 8 bits are zeros. | 🔴 Critical | 🟢 Low | Easy |
+| [DONE, HL] **Brickwalling**              | Extreme dynamic range compression (DR < 6)            | Fatiguing, lifeless sound. The "loudness war" casualty. | 🔴 Critical | 🟡 Medium | Medium — RMS vs peak over windows |
+| [DONE, HL] **Dropouts/Glitches**         | Brief interruptions or digital artifacts              | Ripping errors, bad source, damaged files | 🔴 Critical | 🔴 Critical | Medium — statistical discontinuity detection |
+| [DONE, HL] **DC Offset**                 | Constant voltage bias shifting waveform away from zero | Wastes headroom, causes clicks between tracks, stresses speakers | 🟠 High | 🟢 Low | Easy |
+| [DONE, HL] **Fake Stereo**               | Identical L/R channels marketed as stereo             | Deceptive. Wastes storage. | 🟠 High | 🟢 Low | Easy |
+| [DONE, HL] **Phase Issues**              | L/R cancellation when summed to mono                  | Sounds hollow on mono systems, disappearing instruments | 🟠 High | 🟢 Low | Easy |
+| [DONE, HL] **Inverted Phase**            | One channel 180° out of phase                         | Weird imaging, bass cancellation on mono sum | 🟠 High | 🟢 Low | Easy |
+| [DONE, HL] **Inter-Sample Peaks**        | Overs that only appear after D/A reconstruction       | Causes clipping in DACs. Invisible to naive peak meters. | 🟠 High | 🟢 Low | Medium — interpolation/upsampling |
+| **Click/Pop**                        | Transient spikes from vinyl damage or bad edits       | Distracting, indicates source issues | 🟠 High | 🟠 High | Hard → **sox** |
+| [DONE, HL] **60Hz Hum**                  | Mains frequency contamination                         | Poor recording/transfer, ground loop | 🟠 High | 🟡 Medium | Medium — FFT spike at 50/60Hz |
+| [DONE, HL] **High Noise Floor**          | Excessive background noise/hiss                       | Poor source quality, bad transfer | 🟠 High | 🟡 Medium | Medium — RMS during quiet sections |
+| **Wow/Flutter**                      | Pitch variations from tape/vinyl transfer             | Speed instability in analog source | 🟠 High | 🟢 Low | Hard → **aubio** |
+| [DONE, HL] **Silence Padding**           | Excessive silence at start/end (>2-3 seconds)         | Hidden tracks are fine; unintentional padding is sloppy | 🟡 Medium | 🟢 Low | Easy |
+| [DONE, HL] **Channel Imbalance**         | L/R volume difference                                 | Bad mastering, equipment issues | 🟡 Medium | 🟢 Low | Easy |
 
 ---
 

@@ -12,7 +12,7 @@ import (
 
 	"github.com/farcloser/primordium/fault"
 
-	"github.com/farcloser/haustorium/internal/integration/bin"
+	"github.com/farcloser/haustorium/internal/integration/binary"
 	"github.com/farcloser/haustorium/internal/types"
 )
 
@@ -26,7 +26,7 @@ func ExtractStream(
 ) error {
 	slog.Debug("ffmpeg.ExtractStream", "stream index", streamIndex, "stage", "start")
 
-	ffmpegPath, found := bin.Available(name)
+	ffmpegPath, found := binary.Available(name)
 	if !found {
 		return fmt.Errorf("%w: %s", fault.ErrMissingRequirements, name)
 	}

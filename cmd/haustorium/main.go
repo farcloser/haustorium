@@ -19,6 +19,7 @@ func main() {
 		Version: version.Version(),
 		Commands: []*cli.Command{
 			analyzeCommand(),
+			processCommand(),
 		},
 	}
 

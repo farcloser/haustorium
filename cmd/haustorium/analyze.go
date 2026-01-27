@@ -23,7 +23,7 @@ func analyzeCommand() *cli.Command {
 		Usage:     "Analyze raw PCM audio for quality issues",
 		ArgsUsage: "<file | ->",
 		Flags: []cli.Flag{
-			// PCMFormat flags (mandatory).
+			// PCMFormat flags.
 			&cli.IntFlag{
 				Name:     "sample-rate",
 				Aliases:  []string{"s"},
@@ -31,16 +31,16 @@ func analyzeCommand() *cli.Command {
 				Required: true,
 			},
 			&cli.IntFlag{
-				Name:     "bit-depth",
-				Aliases:  []string{"b"},
-				Usage:    "Bit depth (16, 24, or 32)",
-				Required: true,
+				Name:    "bit-depth",
+				Aliases: []string{"b"},
+				Usage:   "Bit depth (16, 24, or 32)",
+				Value:   32,
 			},
 			&cli.IntFlag{
-				Name:     "channels",
-				Aliases:  []string{"c"},
-				Usage:    "Number of channels (1 = mono, 2 = stereo)",
-				Required: true,
+				Name:    "channels",
+				Aliases: []string{"c"},
+				Usage:   "Number of channels (1 = mono, 2 = stereo)",
+				Value:   2,
 			},
 			&cli.IntFlag{
 				Name:  "expected-bit-depth",
@@ -53,6 +53,14 @@ func analyzeCommand() *cli.Command {
 				Aliases: []string{"C"},
 				Usage:   "Comma-separated checks or presets: all, defects, loudness, clipping, truncation, fake-bit-depth, fake-sample-rate, lossy-transcode, dc-offset, fake-stereo, phase-issues, inverted-phase, channel-imbalance, silence-padding, hum, noise-floor, inter-sample-peaks, dynamic-range, dropouts",
 				Value:   "all",
+			},
+
+			// Source type.
+			&cli.StringFlag{
+				Name:    "source",
+				Aliases: []string{"S"},
+				Usage:   "Audio source type adjusting detection thresholds: digital, vinyl, live",
+				Value:   "digital",
 			},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
@@ -72,13 +80,18 @@ func analyzeCommand() *cli.Command {
 				return err
 			}
 
-			opts := haustorium.DefaultOptions()
+			source, err := haustorium.ParseSource(cmd.String("source"))
+			if err != nil {
+				return err
+			}
+
+			opts := haustorium.OptionsForSource(source)
 			opts.Checks = checks
 
 			// Build reader factory.
-			source := cmd.Args().First()
+			inputPath := cmd.Args().First()
 
-			factory, cleanup, err := readerFactory(source)
+			factory, cleanup, err := readerFactory(inputPath)
 			if err != nil {
 				return err
 			}
@@ -90,7 +103,7 @@ func analyzeCommand() *cli.Command {
 				return fmt.Errorf("analysis failed: %w", err)
 			}
 
-			printResult(result)
+			printResult(inputPath, result)
 
 			return nil
 		},
@@ -141,23 +154,23 @@ func toBitDepth(v int) (types.BitDepth, error) {
 
 //nolint:gochecknoglobals
 var checkNames = map[string]haustorium.Check{
-	"clipping":          haustorium.CheckClipping,
-	"truncation":        haustorium.CheckTruncation,
-	"fake-bit-depth":    haustorium.CheckFakeBitDepth,
-	"fake-sample-rate":  haustorium.CheckFakeSampleRate,
-	"lossy-transcode":   haustorium.CheckLossyTranscode,
-	"dc-offset":         haustorium.CheckDCOffset,
-	"fake-stereo":       haustorium.CheckFakeStereo,
-	"phase-issues":      haustorium.CheckPhaseIssues,
-	"inverted-phase":    haustorium.CheckInvertedPhase,
-	"channel-imbalance": haustorium.CheckChannelImbalance,
-	"silence-padding":   haustorium.CheckSilencePadding,
-	"hum":               haustorium.CheckHum,
-	"noise-floor":       haustorium.CheckNoiseFloor,
+	"clipping":           haustorium.CheckClipping,
+	"truncation":         haustorium.CheckTruncation,
+	"fake-bit-depth":     haustorium.CheckFakeBitDepth,
+	"fake-sample-rate":   haustorium.CheckFakeSampleRate,
+	"lossy-transcode":    haustorium.CheckLossyTranscode,
+	"dc-offset":          haustorium.CheckDCOffset,
+	"fake-stereo":        haustorium.CheckFakeStereo,
+	"phase-issues":       haustorium.CheckPhaseIssues,
+	"inverted-phase":     haustorium.CheckInvertedPhase,
+	"channel-imbalance":  haustorium.CheckChannelImbalance,
+	"silence-padding":    haustorium.CheckSilencePadding,
+	"hum":                haustorium.CheckHum,
+	"noise-floor":        haustorium.CheckNoiseFloor,
 	"inter-sample-peaks": haustorium.CheckInterSamplePeaks,
-	"loudness":          haustorium.CheckLoudness,
-	"dynamic-range":     haustorium.CheckDynamicRange,
-	"dropouts":          haustorium.CheckDropouts,
+	"loudness":           haustorium.CheckLoudness,
+	"dynamic-range":      haustorium.CheckDynamicRange,
+	"dropouts":           haustorium.CheckDropouts,
 	// Presets.
 	"all":     haustorium.ChecksAll,
 	"defects": haustorium.ChecksDefects,
@@ -215,7 +228,11 @@ func readerFactory(source string) (haustorium.ReaderFactory, func(), error) {
 	return factory, func() {}, nil
 }
 
-func printResult(result *haustorium.Result) {
+func printResult(filePath string, result *haustorium.Result) {
+	if filePath != "" && filePath != "-" {
+		fmt.Printf("File: %s\n", filePath)
+	}
+
 	fmt.Printf("Issues found: %d (worst severity: %s)\n\n", result.IssueCount, result.WorstSeverity)
 
 	for _, issue := range result.Issues {
@@ -224,7 +241,63 @@ func printResult(result *haustorium.Result) {
 			marker = "!!"
 		}
 
-		fmt.Printf("%s [%s] %s (confidence: %.0f%%)\n",
-			marker, issue.Severity, issue.Summary, issue.Confidence*100)
+		fmt.Printf("%s [%s] [%s] %s (confidence: %.0f%%)\n",
+			marker, issue.Severity, issue.Check, issue.Summary, issue.Confidence*100)
+	}
+
+	printProperties(result)
+}
+
+func printProperties(result *haustorium.Result) {
+	var props []string
+
+	if r := result.Loudness; r != nil {
+		props = append(props,
+			fmt.Sprintf("  Loudness:          %.1f LUFS (range: %.1f LU)", r.IntegratedLUFS, r.LoudnessRange),
+			fmt.Sprintf("  Dynamic Range:     DR%d", r.DRScore),
+		)
+	}
+
+	if r := result.TruePeak; r != nil {
+		props = append(props,
+			fmt.Sprintf("  True Peak:         %.1f dBTP", r.TruePeakDb),
+		)
+	}
+
+	if r := result.Spectral; r != nil {
+		props = append(props,
+			fmt.Sprintf("  Spectral Centroid: %.0f Hz", r.SpectralCentroid),
+		)
+	}
+
+	if r := result.Stereo; r != nil {
+		props = append(props,
+			fmt.Sprintf("  Stereo Width:      %s (correlation: %.2f)", stereoWidthLabel(r.Correlation), r.Correlation),
+		)
+	}
+
+	if len(props) == 0 {
+		return
+	}
+
+	fmt.Printf("\nProperties:\n")
+
+	for _, p := range props {
+		fmt.Println(p)
+	}
+}
+
+func stereoWidthLabel(correlation float64) string {
+	switch {
+	case correlation > 0.95:
+		return "Mono/Narrow"
+	case correlation > 0.75:
+		return "Narrow"
+	case correlation > 0.5:
+		return "Normal"
+	case correlation > 0.2:
+		return "Wide"
+	default:
+		return "Very Wide"
 	}
 }

@@ -1,4 +1,4 @@
-NAME := gill
+NAME := haustorium
 ICON := "🧿"
 ORG := github.com/farcloser
 
