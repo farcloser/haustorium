@@ -63,7 +63,7 @@ Short tracks that fit within `WindowsMax` windows are still fully analyzed.
 
 ### dropouts: detection counts zero crossings in decaying signal tails
 
-> **OPEN**
+> **FIXED**
 
 The dropout detector flags zero runs of >= 1ms as discontinuities. In a
 decaying signal (fade-out, note release, trailing silence), the waveform
@@ -75,8 +75,35 @@ end of a track, none of which are actual dropouts. For example, a chamber
 music track with a natural decay into silence reported 358 discontinuities
 — all located in the final 1-2 seconds of decay, all 1-2ms long.
 
-**Planned fix:** exclude zero runs that occur during a sustained low-energy
-passage (e.g. RMS below -60 dB in the surrounding window). Real dropouts
-are sudden silence in the middle of audible content, not gradual decay.
-Alternatively, raise the minimum zero run duration to something less
-sensitive (e.g. 5-10ms) so that natural zero crossings are ignored.
+**Fix:** the dropout detector now maintains a per-channel RMS ring buffer
+(50ms window, sum of squares). When a zero run starts, the current RMS
+level is captured. When the run ends, the event is only emitted if the
+RMS at run start was above `ZeroRunQuietDb` (default: -50 dB). Zero runs
+in quiet/decaying passages are silently ignored.
+
+### dropouts: delta detector triggers on normal musical transients
+
+> **OPEN**
+
+The delta detector flags sample-to-sample jumps exceeding `DeltaThreshold`
+(default: 0.5, i.e. 50% of full scale). In percussive or energetic music,
+normal fast transients (drum hits, brass stabs, plucked strings) routinely
+produce sample-to-sample changes of 50-110% of full scale at 44.1 kHz.
+
+A John Zorn chamber music track reported 245 delta events — all in the
+main body of the music (158-265s), at normal RMS levels (-10 to -26 dB),
+with 237 on the left channel and 8 on the right. None were actual
+discontinuities; the audio content simply has aggressive transients.
+
+A real dropout has a specific signature: audio at normal level, sudden
+drop to near-zero, then resumption. A fast musical transient has large
+sample values on both sides of the jump. The current detector cannot
+distinguish between these two cases.
+
+**Planned fix:** require that at least one side of a delta event is
+near zero (e.g. `min(abs(prev), abs(cur)) < 0.01`). A genuine dropout
+transitions between normal audio and silence, so one of the two samples
+flanking the jump should be near zero. A musical transient has significant
+amplitude on both sides (e.g. prev=0.35, cur=-0.77) and would be
+filtered out. Alternatively, raise `DeltaThreshold` significantly (e.g.
+1.5), though this reduces sensitivity to subtle discontinuities.

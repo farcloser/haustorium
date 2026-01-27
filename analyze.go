@@ -1004,9 +1004,11 @@ func interpretResults(result *Result, opts Options) {
 			summary = fmt.Sprintf("%d discontinuities (%d jumps, %d zero runs, %d DC shifts)",
 				int(total), result.Dropout.DeltaCount, result.Dropout.ZeroRunCount, result.Dropout.DCJumpCount)
 		case SeverityModerate:
-			summary = fmt.Sprintf("%d discontinuities detected", int(total))
+			summary = fmt.Sprintf("%d discontinuities (%d jumps, %d zero runs, %d DC shifts)",
+				int(total), result.Dropout.DeltaCount, result.Dropout.ZeroRunCount, result.Dropout.DCJumpCount)
 		case SeveritySevere:
-			summary = fmt.Sprintf("%d discontinuities (worst: %.1f dB)", int(total), result.Dropout.WorstDb)
+			summary = fmt.Sprintf("%d discontinuities (%d jumps, %d zero runs, %d DC shifts; worst: %.1f dB)",
+				int(total), result.Dropout.DeltaCount, result.Dropout.ZeroRunCount, result.Dropout.DCJumpCount, result.Dropout.WorstDb)
 		}
 
 		result.HasDropouts = detected

@@ -13,6 +13,7 @@ import (
 type Options struct {
 	DeltaThreshold  float64 // normalized; default 0.5 (50% of full scale jump)
 	ZeroRunMinMs    float64 // minimum zero run to report; default 1.0ms
+	ZeroRunQuietDb  float64 // RMS below this around a zero run = not a dropout; default -50
 	DCWindowMs      float64 // window for DC average; default 50ms
 	DCJumpThreshold float64 // DC change threshold; default 0.1
 }
@@ -21,9 +22,24 @@ func DefaultOptions() Options {
 	return Options{
 		DeltaThreshold:  0.5,
 		ZeroRunMinMs:    1.0,
+		ZeroRunQuietDb:  -50.0,
 		DCWindowMs:      50.0,
 		DCJumpThreshold: 0.1,
 	}
+}
+
+// rmsDb returns the current RMS level in dB from a running sum-of-squares.
+func rmsDb(sqSum float64, sqFilled int) float64 {
+	if sqFilled == 0 {
+		return -120
+	}
+
+	rms := math.Sqrt(sqSum / float64(sqFilled))
+	if rms > 0 {
+		return 20 * math.Log10(rms)
+	}
+
+	return -120
 }
 
 func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutResult, error) {
@@ -32,6 +48,9 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 	}
 	if opts.ZeroRunMinMs == 0 {
 		opts.ZeroRunMinMs = 1.0
+	}
+	if opts.ZeroRunQuietDb == 0 {
+		opts.ZeroRunQuietDb = -50.0
 	}
 	if opts.DCWindowMs == 0 {
 		opts.DCWindowMs = 50.0
@@ -80,6 +99,17 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 		dcBuf[ch] = make([]float64, dcWindowSize)
 	}
 
+	// RMS tracking for zero-run quiet detection (sum of squares over same window)
+	sqBuf := make([][]float64, numChannels)
+	sqPos := make([]int, numChannels)
+	sqSum := make([]float64, numChannels)
+	sqFilled := make([]int, numChannels)
+	zeroStartRms := make([]float64, numChannels)
+
+	for ch := 0; ch < numChannels; ch++ {
+		sqBuf[ch] = make([]float64, dcWindowSize)
+	}
+
 	minZeroSamples := int(sampleRate * opts.ZeroRunMinMs / 1000)
 	if minZeroSamples < 1 {
 		minZeroSamples = 1
@@ -119,11 +149,12 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 							if sample == 0 {
 								if zeroStart[ch] < 0 {
 									zeroStart[ch] = int64(totalFrames)
+									zeroStartRms[ch] = rmsDb(sqSum[ch], sqFilled[ch])
 								}
 							} else {
 								if zeroStart[ch] >= 0 {
 									runLength := int64(totalFrames) - zeroStart[ch]
-									if runLength >= int64(minZeroSamples) {
+									if runLength >= int64(minZeroSamples) && zeroStartRms[ch] >= opts.ZeroRunQuietDb {
 										durationMs := float64(runLength) / sampleRate * 1000
 										result.Events = append(result.Events, types.Event{
 											Frame:      uint64(zeroStart[ch]),
@@ -168,6 +199,16 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 							dcInitialized[ch] = true
 						}
 
+						// RMS tracking (sum of squares)
+						oldSq := sqBuf[ch][sqPos[ch]]
+						sq := sample * sample
+						sqBuf[ch][sqPos[ch]] = sq
+						sqSum[ch] = sqSum[ch] - oldSq + sq
+						sqPos[ch] = (sqPos[ch] + 1) % dcWindowSize
+						if sqFilled[ch] < dcWindowSize {
+							sqFilled[ch]++
+						}
+
 						prevSample[ch] = sample
 					}
 					totalFrames++
@@ -199,11 +240,12 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 							if sample == 0 {
 								if zeroStart[ch] < 0 {
 									zeroStart[ch] = int64(totalFrames)
+									zeroStartRms[ch] = rmsDb(sqSum[ch], sqFilled[ch])
 								}
 							} else {
 								if zeroStart[ch] >= 0 {
 									runLength := int64(totalFrames) - zeroStart[ch]
-									if runLength >= int64(minZeroSamples) {
+									if runLength >= int64(minZeroSamples) && zeroStartRms[ch] >= opts.ZeroRunQuietDb {
 										durationMs := float64(runLength) / sampleRate * 1000
 										result.Events = append(result.Events, types.Event{
 											Frame:      uint64(zeroStart[ch]),
@@ -245,6 +287,15 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 							}
 							prevDC[ch] = currentDC
 							dcInitialized[ch] = true
+						}
+
+						oldSq := sqBuf[ch][sqPos[ch]]
+						sq := sample * sample
+						sqBuf[ch][sqPos[ch]] = sq
+						sqSum[ch] = sqSum[ch] - oldSq + sq
+						sqPos[ch] = (sqPos[ch] + 1) % dcWindowSize
+						if sqFilled[ch] < dcWindowSize {
+							sqFilled[ch]++
 						}
 
 						prevSample[ch] = sample
@@ -273,11 +324,12 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 							if sample == 0 {
 								if zeroStart[ch] < 0 {
 									zeroStart[ch] = int64(totalFrames)
+									zeroStartRms[ch] = rmsDb(sqSum[ch], sqFilled[ch])
 								}
 							} else {
 								if zeroStart[ch] >= 0 {
 									runLength := int64(totalFrames) - zeroStart[ch]
-									if runLength >= int64(minZeroSamples) {
+									if runLength >= int64(minZeroSamples) && zeroStartRms[ch] >= opts.ZeroRunQuietDb {
 										durationMs := float64(runLength) / sampleRate * 1000
 										result.Events = append(result.Events, types.Event{
 											Frame:      uint64(zeroStart[ch]),
@@ -321,6 +373,15 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 							dcInitialized[ch] = true
 						}
 
+						oldSq := sqBuf[ch][sqPos[ch]]
+						sq := sample * sample
+						sqBuf[ch][sqPos[ch]] = sq
+						sqSum[ch] = sqSum[ch] - oldSq + sq
+						sqPos[ch] = (sqPos[ch] + 1) % dcWindowSize
+						if sqFilled[ch] < dcWindowSize {
+							sqFilled[ch]++
+						}
+
 						prevSample[ch] = sample
 					}
 					totalFrames++
@@ -342,7 +403,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 	for ch := 0; ch < numChannels; ch++ {
 		if zeroStart[ch] >= 0 {
 			runLength := int64(totalFrames) - zeroStart[ch]
-			if runLength >= int64(minZeroSamples) {
+			if runLength >= int64(minZeroSamples) && zeroStartRms[ch] >= opts.ZeroRunQuietDb {
 				durationMs := float64(runLength) / sampleRate * 1000
 				result.Events = append(result.Events, types.Event{
 					Frame:      uint64(zeroStart[ch]),
