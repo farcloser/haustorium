@@ -66,6 +66,33 @@ we did not find evidence of a lossy transcode.
 
 For a concrete example: high bit-rate lossy with a cutoff close to Nyquist will look legit.
 
+### What the detector actually measures
+
+The check looks for a spectral brick wall: a sharp energy dropoff at a frequency
+consistent with a known lossy codec and bitrate. It reports the cutoff frequency,
+rolloff sharpness, and a likely codec match.
+
+### Ambiguity: who introduced the lossy encoding?
+
+A positive detection means "there is a brick wall in the spectrum consistent with
+lossy encoding." It does **not** tell you who in the chain introduced it.
+Possible causes include:
+
+1. **User fraud** — someone ripped a lossy stream (MP3, Opus, AAC) and wrapped
+   it in a lossless container (FLAC, ALAC) to pass it off as lossless.
+2. **Label fraud** — the label or distributor worked from a lossy source.
+   Budget reissue labels sometimes master from whatever digital source they can
+   obtain, which may already be lossy. The resulting CD or "lossless" download
+   carries the lossy spectral signature baked in from the source.
+3. **Aggressive mastering** — the mastering engineer applied a steep low-pass
+   filter near 20 kHz, producing a brick wall that is indistinguishable from
+   a lossy codec cutoff. This is rare but not impossible.
+
+The tool cannot distinguish between these cases. It reports the spectral evidence
+and lets you decide. Context matters: a 2016 budget reissue of 1960 recordings
+with a 20.5 kHz cutoff could be any of the above, while a brand-new release
+from a major label with a 16 kHz cutoff is almost certainly a lossy transcode.
+
 ## dc-offset
 
 A constant voltage bias in the signal. Usually caused by faulty hardware (sound card, ADC)
