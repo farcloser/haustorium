@@ -60,6 +60,12 @@ if ! command -v ffmpeg &>/dev/null; then
   exit 1
 fi
 
+if ! command -v ffprobe &>/dev/null; then
+  echo "Error: ffprobe not found in PATH" >&2
+  echo "Install with: brew install ffmpeg (macOS) or apt install ffmpeg (Linux)" >&2
+  exit 1
+fi
+
 # --- Collect files ---
 mapfile -t files < <(find "$folder" -type f \( -iname "*.flac" -o -iname "*.m4a" \) | sort)
 
@@ -89,6 +95,12 @@ ERROR: analysis failed
 "
     failed=$((failed + 1))
   }
+
+  # If severe issues detected, append comprehensive ffprobe data
+  if echo "$result" | grep -q "worst severity: severe"; then
+    probe=$(ffprobe -v quiet -print_format json -show_format -show_streams -show_chapters "$file" 2>&1) || probe="ffprobe failed"
+    result+=$'\n'"--- ffprobe ---"$'\n'"$probe"
+  fi
 
   report+="$result"
   report+=$'\n\n'

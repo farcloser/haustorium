@@ -150,7 +150,7 @@ func buildPCMFormat(stream *ffprobe.Stream) (types.PCMFormat, error) {
 // resolveExpectedBitDepth determines the original bit depth from ffprobe data.
 // For lossless codecs (FLAC, ALAC), bits_per_raw_sample is most reliable.
 // For PCM containers (WAV, AIFF), bits_per_sample is authoritative.
-// For lossy codecs, no meaningful bit depth exists — defaults to Depth32
+// For lossy codecs, no meaningful bit depth exists. Defaults to Depth32
 // (matching extraction bit depth, which disables the fake-bit-depth check).
 func resolveExpectedBitDepth(stream *ffprobe.Stream) types.BitDepth {
 	if stream.BitsPerRawSample != "" {

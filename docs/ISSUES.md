@@ -72,8 +72,8 @@ for just over 1ms as the signal oscillates through the zero line.
 
 This produces dozens or hundreds of "zero run" events clustered at the
 end of a track, none of which are actual dropouts. For example, a chamber
-music track with a natural decay into silence reported 358 discontinuities
-— all located in the final 1-2 seconds of decay, all 1-2ms long.
+music track with a natural decay into silence reported 358 discontinuities,
+all located in the final 1-2 seconds of decay, all 1-2ms long.
 
 **Fix:** the dropout detector now maintains a per-channel RMS ring buffer
 (50ms window, sum of squares). When a zero run starts, the current RMS
@@ -90,7 +90,7 @@ The delta detector flags sample-to-sample jumps exceeding `DeltaThreshold`
 normal fast transients (drum hits, brass stabs, plucked strings) routinely
 produce sample-to-sample changes of 50-110% of full scale at 44.1 kHz.
 
-A John Zorn chamber music track reported 245 delta events — all in the
+A John Zorn chamber music track reported 245 delta events, all in the
 main body of the music (158-265s), at normal RMS levels (-10 to -26 dB),
 with 237 on the left channel and 8 on the right. None were actual
 discontinuities; the audio content simply has aggressive transients.
@@ -108,3 +108,36 @@ zero. Musical transients have significant amplitude on both sides (e.g.
 prev=0.35, cur=-0.77) and are filtered out. The same test track dropped
 from 245 false positives to 4 genuine events, all showing one side at
 full level and the other near zero.
+
+### dropouts: delta detector triggers on normal zero crossings in loud material
+
+> **OPEN**
+
+The near-zero filter (`isDeltaDropout`) successfully eliminates transient
+false positives, but it cannot distinguish a real dropout from a normal
+zero crossing in a loud waveform. A 500 Hz signal at 44.1 kHz crosses
+zero ~1000 times per second. At each crossing, one sample lands near zero
+while the adjacent sample is at full amplitude, producing a delta > 0.5
+with one side near zero, exactly matching the dropout signature.
+
+A John Zorn collage track (Battle of Algiers) reported 147 delta events
+spread across the full duration (26-218s), all on the 32-bit decode path,
+all at normal RMS (-11 to -26 dB). Every event has one sample in the
+range 0.000-0.009 and the other at 0.5-0.8 full scale. Many occur in
+rapid pairs at the same timestamp, consistent with the waveform passing
+through zero on consecutive samples. None are actual dropouts; they are
+normal zero crossings in aggressive, dynamically extreme music.
+
+This is a fundamental limitation of single-sample delta detection: a
+dropout edge (audio → silence) is indistinguishable from a zero crossing
+(waveform passing through zero) when examined one sample at a time.
+
+**Possible mitigations (none fully solve the problem):**
+- Tighten `DeltaNearZero` from 0.01 to 0.001 (filters most false
+  positives but also reduces sensitivity to real dropouts)
+- Compare windowed RMS on both sides of the event (~5 samples each):
+  a zero crossing has similar RMS on both sides, a dropout edge has
+  high RMS on one side and low on the other (adds complexity, still
+  fails on intentional hard edits)
+- Raise `DeltaThreshold` above 0.8 (fewer false hits, fewer real catches)
+- Disable delta detection by default and make it opt-in
