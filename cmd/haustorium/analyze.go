@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"strings"
 
@@ -62,6 +63,13 @@ func analyzeCommand() *cli.Command {
 				Usage:   "Audio source type adjusting detection thresholds: digital, vinyl, live",
 				Value:   "digital",
 			},
+
+			// Output verbosity.
+			&cli.BoolFlag{
+				Name:    "verbose",
+				Aliases: []string{"V"},
+				Usage:   "Print all raw analyzer data alongside the summary",
+			},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			if cmd.NArg() != 1 {
@@ -103,7 +111,7 @@ func analyzeCommand() *cli.Command {
 				return fmt.Errorf("analysis failed: %w", err)
 			}
 
-			printResult(inputPath, result)
+			printResult(inputPath, result, cmd.Bool("verbose"))
 
 			return nil
 		},
@@ -228,7 +236,7 @@ func readerFactory(source string) (haustorium.ReaderFactory, func(), error) {
 	return factory, func() {}, nil
 }
 
-func printResult(filePath string, result *haustorium.Result) {
+func printResult(filePath string, result *haustorium.Result, verbose bool) {
 	if filePath != "" && filePath != "-" {
 		fmt.Printf("File: %s\n", filePath)
 	}
@@ -246,6 +254,10 @@ func printResult(filePath string, result *haustorium.Result) {
 	}
 
 	printProperties(result)
+
+	if verbose {
+		printVerbose(result)
+	}
 }
 
 func printProperties(result *haustorium.Result) {
@@ -300,4 +312,148 @@ func stereoWidthLabel(correlation float64) string {
 	default:
 		return "Very Wide"
 	}
+}
+
+func printVerbose(result *haustorium.Result) {
+	fmt.Println("\n--- Verbose Output ---")
+
+	if r := result.Clipping; r != nil {
+		fmt.Println("\n[Clipping]")
+		fmt.Printf("  Events:          %d\n", r.Events)
+		fmt.Printf("  Clipped samples: %d\n", r.ClippedSamples)
+		fmt.Printf("  Longest run:     %d samples\n", r.LongestRun)
+		fmt.Printf("  Total samples:   %d\n", r.Samples)
+		for i, ch := range r.Channels {
+			fmt.Printf("  Channel %d:       %d events, %d clipped, longest run %d\n",
+				i, ch.Events, ch.ClippedSamples, ch.LongestRun)
+		}
+	}
+
+	if r := result.Truncation; r != nil {
+		fmt.Println("\n[Truncation]")
+		fmt.Printf("  Final RMS:       %.1f dB\n", r.FinalRmsDb)
+		fmt.Printf("  Final peak:      %.1f dB\n", r.FinalPeakDb)
+		fmt.Printf("  Samples in tail: %d\n", r.SamplesInTail)
+	}
+
+	if r := result.BitDepth; r != nil {
+		fmt.Println("\n[Bit Depth]")
+		fmt.Printf("  Claimed:         %d-bit\n", r.Claimed)
+		fmt.Printf("  Effective:       %d-bit\n", r.Effective)
+		fmt.Printf("  Padded:          %v\n", r.IsPadded)
+		fmt.Printf("  Samples:         %d\n", r.Samples)
+	}
+
+	if r := result.Spectral; r != nil {
+		fmt.Println("\n[Spectral]")
+		fmt.Printf("  Claimed rate:    %d Hz\n", r.ClaimedRate)
+		if r.IsUpsampled {
+			fmt.Printf("  Upsampled:       yes (from %d Hz)\n", r.EffectiveRate)
+			fmt.Printf("  Cutoff:          %.0f Hz\n", r.UpsampleCutoff)
+			fmt.Printf("  Sharpness:       %.1f dB/oct\n", r.UpsampleSharpness)
+		} else {
+			fmt.Printf("  Upsampled:       no\n")
+		}
+		if r.IsTranscode {
+			fmt.Printf("  Transcode:       yes (%s)\n", r.LikelyCodec)
+			fmt.Printf("  Cutoff:          %.0f Hz\n", r.TranscodeCutoff)
+			fmt.Printf("  Sharpness:       %.1f dB/oct\n", r.TranscodeSharpness)
+		} else {
+			fmt.Printf("  Transcode:       no\n")
+		}
+		fmt.Printf("  50 Hz hum:       %v\n", r.Has50HzHum)
+		fmt.Printf("  60 Hz hum:       %v\n", r.Has60HzHum)
+		if r.Has50HzHum || r.Has60HzHum {
+			fmt.Printf("  Hum level:       %.1f dB\n", r.HumLevelDb)
+		}
+		fmt.Printf("  Noise floor:     %.1f dB\n", r.NoiseFloorDb)
+		fmt.Printf("  Centroid:        %.0f Hz\n", r.SpectralCentroid)
+		fmt.Printf("  Frames:          %d\n", r.Frames)
+	}
+
+	if r := result.DCOffset; r != nil {
+		fmt.Println("\n[DC Offset]")
+		fmt.Printf("  Overall:         %.6f (%.1f dB)\n", r.Offset, r.OffsetDb)
+		for i, ch := range r.Channels {
+			fmt.Printf("  Channel %d:       %.6f\n", i, ch)
+		}
+		fmt.Printf("  Samples:         %d\n", r.Samples)
+	}
+
+	if r := result.Stereo; r != nil {
+		fmt.Println("\n[Stereo]")
+		fmt.Printf("  Correlation:     %.4f\n", r.Correlation)
+		fmt.Printf("  L-R difference:  %.1f dB\n", r.DifferenceDb)
+		fmt.Printf("  Mono sum:        %.1f dB\n", r.MonoSumDb)
+		fmt.Printf("  Stereo RMS:      %.1f dB\n", r.StereoRmsDb)
+		fmt.Printf("  Cancellation:    %.1f dB\n", r.CancellationDb)
+		fmt.Printf("  Left RMS:        %.1f dB\n", r.LeftRmsDb)
+		fmt.Printf("  Right RMS:       %.1f dB\n", r.RightRmsDb)
+		fmt.Printf("  Imbalance:       %.1f dB (%s louder)\n", math.Abs(r.ImbalanceDb), imbalanceSide(r.ImbalanceDb))
+		fmt.Printf("  Frames:          %d\n", r.Frames)
+	}
+
+	if r := result.Silence; r != nil {
+		fmt.Println("\n[Silence]")
+		fmt.Printf("  Total duration:  %.1fs\n", r.TotalDuration)
+		fmt.Printf("  Leading:         %.2fs\n", r.LeadingSec)
+		fmt.Printf("  Trailing:        %.2fs\n", r.TrailingSec)
+		fmt.Printf("  Total silence:   %.2fs\n", r.TotalSilence)
+		fmt.Printf("  Segments:        %d\n", len(r.Segments))
+		for i, seg := range r.Segments {
+			fmt.Printf("    %d. %.2f-%.2fs (%.2fs) at %.1f dB\n",
+				i+1, seg.StartSec, seg.EndSec, seg.DurationSec, seg.RmsDb)
+		}
+	}
+
+	if r := result.TruePeak; r != nil {
+		fmt.Println("\n[True Peak]")
+		fmt.Printf("  True peak:       %.2f dBTP\n", r.TruePeakDb)
+		fmt.Printf("  Sample peak:     %.2f dB\n", r.SamplePeakDb)
+		fmt.Printf("  ISP count:       %d\n", r.ISPCount)
+		fmt.Printf("  ISP max:         %.2f dB\n", r.ISPMaxDb)
+		fmt.Printf("  Frames:          %d\n", r.Frames)
+	}
+
+	if r := result.Loudness; r != nil {
+		fmt.Println("\n[Loudness]")
+		fmt.Printf("  Integrated:      %.1f LUFS\n", r.IntegratedLUFS)
+		fmt.Printf("  Short-term max:  %.1f LUFS\n", r.ShortTermMax)
+		fmt.Printf("  Momentary max:   %.1f LUFS\n", r.MomentaryMax)
+		fmt.Printf("  Loudness range:  %.1f LU\n", r.LoudnessRange)
+		fmt.Printf("  DR score:        DR%d\n", r.DRScore)
+		fmt.Printf("  DR value:        %.1f\n", r.DRValue)
+		fmt.Printf("  Peak:            %.1f dB\n", r.PeakDb)
+		fmt.Printf("  RMS:             %.1f dB\n", r.RmsDb)
+		fmt.Printf("  Frames:          %d\n", r.Frames)
+	}
+
+	if r := result.Dropout; r != nil {
+		fmt.Println("\n[Dropouts]")
+		fmt.Printf("  Delta count:     %d\n", r.DeltaCount)
+		fmt.Printf("  Zero run count:  %d\n", r.ZeroRunCount)
+		fmt.Printf("  DC jump count:   %d\n", r.DCJumpCount)
+		fmt.Printf("  Worst:           %.1f dB\n", r.WorstDb)
+		fmt.Printf("  Frames:          %d\n", r.Frames)
+		if len(r.Events) > 0 {
+			fmt.Printf("  Events:\n")
+			for i, e := range r.Events {
+				switch e.Type {
+				case types.EventZeroRun:
+					fmt.Printf("    %d. %s @ %.3fs ch%d duration=%.1fms\n",
+						i+1, e.Type, e.TimeSec, e.Channel, e.DurationMs)
+				default:
+					fmt.Printf("    %d. %s @ %.3fs ch%d severity=%.4f\n",
+						i+1, e.Type, e.TimeSec, e.Channel, e.Severity)
+				}
+			}
+		}
+	}
+}
+
+func imbalanceSide(imbalanceDb float64) string {
+	if imbalanceDb >= 0 {
+		return "left"
+	}
+	return "right"
 }

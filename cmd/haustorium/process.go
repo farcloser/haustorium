@@ -41,6 +41,11 @@ func processCommand() *cli.Command {
 				Usage:   "Audio source type adjusting detection thresholds: digital, vinyl, live",
 				Value:   "digital",
 			},
+			&cli.BoolFlag{
+				Name:    "verbose",
+				Aliases: []string{"V"},
+				Usage:   "Print all raw analyzer data alongside the summary",
+			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			if cmd.NArg() != 1 {
@@ -106,7 +111,7 @@ func processCommand() *cli.Command {
 				return fmt.Errorf("analysis failed: %w", err)
 			}
 
-			printResult(filePath, result)
+			printResult(filePath, result, cmd.Bool("verbose"))
 
 			return nil
 		},
