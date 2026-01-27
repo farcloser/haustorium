@@ -141,3 +141,42 @@ dropout edge (audio → silence) is indistinguishable from a zero crossing
   fails on intentional hard edits)
 - Raise `DeltaThreshold` above 0.8 (fewer false hits, fewer real catches)
 - Disable delta detection by default and make it opt-in
+
+### Missing integration test: dropouts positive detection
+
+> **OPEN**
+
+The dropout integration test only covers the negative case (clean audio has
+no dropouts). There is no positive test verifying that actual glitches are
+detected, because the agar test fixture library cannot generate audio with
+dropout artifacts using ffmpeg. ffmpeg's `lavfi` synthesis sources produce
+clean, continuous waveforms with no sample-level discontinuities.
+
+A positive test requires a fixture that writes raw PCM samples directly
+(injecting zero-sample runs and delta discontinuities at known positions)
+rather than relying on ffmpeg's audio generation pipeline.
+
+See also: `agar/docs/ISSUES.md` for the fixture limitation.
+
+### Missing integration test: inter-sample peaks positive detection
+
+> **OPEN**
+
+The inter-sample peaks (ISP) test is entirely skipped because no agar
+fixture can generate audio with true peak exceeding 0 dBTP. ISP events
+occur when the reconstructed analog signal between two digital samples
+overshoots digital full scale. This requires specific inter-sample
+relationships (e.g. two near-full-scale samples with opposite polarity
+at near-Nyquist frequencies) that ffmpeg's synthesis sources and limiters
+do not produce.
+
+Attempts that failed:
+- Near-Nyquist sine wave at 0 dBFS: true peak -18.5 dBTP
+- Multi-sine high amplitude: true peak -12.0 dBTP
+- Limited audio at 0 dBFS (alimiter): true peak -8.1 dBTP
+
+A positive test requires a fixture that constructs raw PCM samples with
+carefully chosen values that produce inter-sample overshoots when
+reconstructed through the sinc interpolation filter.
+
+See also: `agar/docs/ISSUES.md` for the fixture limitation.

@@ -1,8 +1,7 @@
 # Haustorium
 
-> a golang audio analysis tool specialized in music defect detection
-
-> [a rootlike structure that grows into or around another structure to absorb water or nutrients](https://en.wikipedia.org/wiki/Haustorium)
+> * a golang audio analysis tool specialized in music defect detection
+> * [a rootlike structure that grows into or around another structure to absorb water or nutrients](https://en.wikipedia.org/wiki/Haustorium)
 
 ![logo.png](logo.jpg)
 
