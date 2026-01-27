@@ -446,7 +446,7 @@ func Analyze(factory ReaderFactory, format types.PCMFormat, opts Options) (*Resu
 			return nil, err
 		}
 
-		result.Spectral, err = spectral.Analyze(r, format, spectral.DefaultOptions())
+		result.Spectral, err = spectral.AnalyzeV2(r, format, spectral.DefaultOptions())
 		if err != nil {
 			return nil, err
 		}
@@ -518,7 +518,7 @@ func Analyze(factory ReaderFactory, format types.PCMFormat, opts Options) (*Resu
 			return nil, err
 		}
 
-		result.Dropout, err = dropout.Detect(r, format, dropout.Options{
+		result.Dropout, err = dropout.DetectV2(r, format, dropout.Options{
 			DeltaThreshold: opts.DropoutDeltaThreshold,
 		})
 		if err != nil {

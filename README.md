@@ -1,9 +1,9 @@
 # Haustorium
 
-> * a golang audio analysis tool specialized in music defect detection
+> * a Go audio analysis tool specialized in music defect detection
 > * [a rootlike structure that grows into or around another structure to absorb water or nutrients](https://en.wikipedia.org/wiki/Haustorium)
 
-![logo.png](logo.jpg)
+![Haustorium](logo.jpg)
 
 ## Purpose
 
@@ -16,14 +16,14 @@ bad masters (example: brickwalled), bad vinyl rip (example: clipping), and other
 Further, it is interesting to analyze track properties (are their vocals, peak detection,
 frequency response, BPM, key, etc).
 
-Haustorium aims at providing all of that in a golang library, with a simple example binary.
+Haustorium aims at providing all of that in a Go library, with a simple example binary.
 
 We are prioritizing feature development in go, but might in the future shell out to
 dedicated third-party tools for the more complex analysis.
 
 ## Installation
 
-You need golang installed on your machine (`brew install go` if you are on macOS).
+You need Go installed on your machine (`brew install go` if you are on macOS).
 
 ```bash
 go install github.com/farcloser/haustorium/cmd/haustorium@latest

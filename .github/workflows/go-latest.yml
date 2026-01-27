@@ -1,0 +1,68 @@
+name: Go Latest
+
+on:
+  schedule:
+    # Run weekly on Mondays at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint (Go Latest)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
+        with:
+          fetch-depth: 0  # Full history for git-validation
+
+      - name: Set up Go
+        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c  # v6.1.0
+        with:
+          go-version: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: |
+          make install-dev-tools
+          sudo apt-get update -qq && sudo apt-get install -qq shellcheck yamllint
+
+      - name: Lint Go (all platforms)
+        run: make lint-go-all
+
+      - name: Lint go.mod
+        run: make lint-mod
+
+      - name: Lint licenses (all platforms)
+        run: make lint-licenses-all
+
+      - name: Lint headers
+        run: make lint-headers
+
+      - name: Lint YAML
+        run: make lint-yaml
+
+      - name: Lint shell scripts
+        run: make lint-shell
+
+  test:
+    name: Test (Go Latest)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
+
+      - name: Set up Go
+        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c  # v6.1.0
+        with:
+          go-version: 'stable'
+          cache: true
+
+      - name: Run unit tests
+        run: make test-unit
+
+      - name: Run race detector tests
+        run: make test-unit-race

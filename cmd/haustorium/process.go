@@ -43,6 +43,12 @@ func processCommand() *cli.Command {
 				Usage:   "Audio source type adjusting detection thresholds: digital, vinyl, live",
 				Value:   "digital",
 			},
+			&cli.StringFlag{
+				Name:    "format",
+				Aliases: []string{"f"},
+				Usage:   "Output format: console, json, markdown",
+				Value:   "console",
+			},
 			&cli.BoolFlag{
 				Name:    "verbose",
 				Aliases: []string{"V"},
@@ -113,9 +119,7 @@ func processCommand() *cli.Command {
 				return fmt.Errorf("analysis failed: %w", err)
 			}
 
-			printResult(filePath, result, cmd.Bool("verbose"))
-
-			return nil
+			return outputResult(filePath, result, cmd.String("format"), cmd.Bool("verbose"))
 		},
 	}
 }

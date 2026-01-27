@@ -65,6 +65,14 @@ func analyzeCommand() *cli.Command {
 				Value:   "digital",
 			},
 
+			// Output format.
+			&cli.StringFlag{
+				Name:    "format",
+				Aliases: []string{"f"},
+				Usage:   "Output format: console, json, markdown",
+				Value:   "console",
+			},
+
 			// Output verbosity.
 			&cli.BoolFlag{
 				Name:    "verbose",
@@ -112,9 +120,7 @@ func analyzeCommand() *cli.Command {
 				return fmt.Errorf("analysis failed: %w", err)
 			}
 
-			printResult(inputPath, result, cmd.Bool("verbose"))
-
-			return nil
+			return outputResult(inputPath, result, cmd.String("format"), cmd.Bool("verbose"))
 		},
 	}
 }
