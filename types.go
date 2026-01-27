@@ -1,3 +1,4 @@
+//nolint:tagliatelle
 package haustorium
 
 import "github.com/farcloser/haustorium/internal/types"

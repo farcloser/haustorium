@@ -1,11 +1,13 @@
+//nolint:staticcheck // too dumb with Db
 package spectral
 
 import (
 	"io"
 	"math"
 
-	"github.com/farcloser/haustorium/internal/types"
 	"gonum.org/v1/gonum/dsp/fourier"
+
+	"github.com/farcloser/haustorium/internal/types"
 )
 
 // AnalyzeV2 adds temporal variance analysis to reduce false positives for hum
@@ -172,6 +174,7 @@ func detectHumFrequencyV2(windowMagnitudes [][]float64, fundamental, binHz float
 			peakLevel := magDb[bin]
 
 			var surroundSum float64
+
 			surroundCount := 0
 
 			for i := bin - 5; i <= bin+5; i++ {
@@ -183,6 +186,7 @@ func detectHumFrequencyV2(windowMagnitudes [][]float64, fundamental, binHz float
 
 			if surroundCount > 0 {
 				surroundAvg := surroundSum / float64(surroundCount)
+
 				s := peakLevel - surroundAvg
 				if s > maxSpike {
 					maxSpike = s
@@ -198,13 +202,16 @@ func detectHumFrequencyV2(windowMagnitudes [][]float64, fundamental, binHz float
 	for _, s := range windowSpikes {
 		sum += s
 	}
+
 	mean := sum / float64(len(windowSpikes))
 
 	var varianceSum float64
+
 	for _, s := range windowSpikes {
 		d := s - mean
 		varianceSum += d * d
 	}
+
 	stdDev := math.Sqrt(varianceSum / float64(len(windowSpikes)))
 
 	// Coefficient of variation (stdDev / mean).
@@ -221,9 +228,16 @@ func detectHumFrequencyV2(windowMagnitudes [][]float64, fundamental, binHz float
 // detectNoiseFloorV2 measures noise floor during quiet passages and checks spectral flatness.
 // Both the HF level and the reference level are computed from the same quiet windows
 // to ensure a self-consistent comparison.
-func detectNoiseFloorV2(result *types.SpectralResult, windowMagnitudes [][]float64, windowRMS []float64, binHz, nyquist float64, opts Options) {
+func detectNoiseFloorV2(
+	result *types.SpectralResult,
+	windowMagnitudes [][]float64,
+	windowRMS []float64,
+	binHz, nyquist float64,
+	opts Options,
+) {
 	if len(windowMagnitudes) == 0 {
 		result.NoiseFloorDb = -120
+
 		return
 	}
 
@@ -233,6 +247,7 @@ func detectNoiseFloorV2(result *types.SpectralResult, windowMagnitudes [][]float
 
 	if len(quietIndices) == 0 {
 		result.NoiseFloorDb = -120
+
 		return
 	}
 
@@ -245,12 +260,16 @@ func detectNoiseFloorV2(result *types.SpectralResult, windowMagnitudes [][]float
 
 	if hfStart >= binCount || hfEnd <= hfStart || refEnd <= refStart {
 		result.NoiseFloorDb = -120
+
 		return
 	}
 
-	var hfSum float64
-	var refSum float64
-	var flatnessSum float64
+	var (
+		hfSum       float64
+		refSum      float64
+		flatnessSum float64
+	)
+
 	hfBins := hfEnd - hfStart
 	refBins := refEnd - refStart
 
@@ -312,6 +331,7 @@ func findQuietestWindows(windowRMS []float64, n int) []int {
 		for i := range indices {
 			indices[i] = i
 		}
+
 		return indices
 	}
 
@@ -328,18 +348,19 @@ func findQuietestWindows(windowRMS []float64, n int) []int {
 
 	// Partial sort: find n smallest.
 	// For simplicity, full sort then take first n.
-	for i := 0; i < n; i++ {
+	for i := range n {
 		minIdx := i
 		for j := i + 1; j < len(indexed); j++ {
 			if indexed[j].rms < indexed[minIdx].rms {
 				minIdx = j
 			}
 		}
+
 		indexed[i], indexed[minIdx] = indexed[minIdx], indexed[i]
 	}
 
 	result := make([]int, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		result[i] = indexed[i].index
 	}
 
@@ -353,8 +374,11 @@ func spectralFlatness(magnitudes []float64) float64 {
 		return 0
 	}
 
-	var arithmeticSum float64
-	var logSum float64
+	var (
+		arithmeticSum float64
+		logSum        float64
+	)
+
 	count := 0
 
 	for _, m := range magnitudes {

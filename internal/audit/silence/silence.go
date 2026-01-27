@@ -43,7 +43,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.SilenceRe
 	numChannels := int(format.Channels)
 
 	// Window size in frames
-	windowFrames := max(int(format.SampleRate)*opts.WindowMs/1000, 1)
+	windowFrames := max(format.SampleRate*opts.WindowMs/1000, 1)
 
 	minSilenceFrames := uint64(format.SampleRate) * uint64(opts.MinDurationMs) / 1000
 

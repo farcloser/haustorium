@@ -6,8 +6,9 @@ import (
 	"io"
 	"math"
 
-	"github.com/farcloser/haustorium/internal/types"
 	"github.com/farcloser/primordium/fault"
+
+	"github.com/farcloser/haustorium/internal/types"
 )
 
 // scannerV2 adds cross-channel correlation to filter out intentional transients.
@@ -146,6 +147,7 @@ func (s *scannerV2) processDeltas(numChannels int) {
 			Severity: c.delta,
 		})
 		s.result.DeltaCount++
+
 		return
 	}
 
@@ -228,7 +230,7 @@ func (s *scannerV2) processDeltas(numChannels int) {
 
 // finalizeV2 is identical to finalize but on scannerV2.
 func (s *scannerV2) finalizeV2() *types.DropoutResult {
-	return s.scanner.finalize()
+	return s.finalize()
 }
 
 func DetectV2(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutResult, error) {

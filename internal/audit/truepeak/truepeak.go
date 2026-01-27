@@ -242,6 +242,7 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 
 					totalFrames++
 				}
+			default:
 			}
 		}
 

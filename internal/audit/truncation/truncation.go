@@ -48,6 +48,7 @@ func Detect(r io.ReadSeeker, format types.PCMFormat, windowMs uint) (*types.Trun
 		maxVal = 8388608.0
 	case types.Depth32:
 		maxVal = 2147483648.0
+	default:
 	}
 
 	var (
@@ -100,6 +101,7 @@ func Detect(r io.ReadSeeker, format types.PCMFormat, windowMs uint) (*types.Trun
 
 			count++
 		}
+	default:
 	}
 
 	if count == 0 {

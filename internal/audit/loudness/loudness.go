@@ -265,7 +265,7 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.LoudnessResult, error)
 	bytesPerSample := int(format.BitDepth / 8)
 	numChannels := int(format.Channels)
 	frameSize := bytesPerSample * numChannels
-	sampleRate := int(format.SampleRate)
+	sampleRate := format.SampleRate
 
 	buf := make([]byte, frameSize*4096)
 

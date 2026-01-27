@@ -131,6 +131,7 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.ClippingDetection, erro
 						consecutive[ch] = 0
 					}
 				}
+			default:
 			}
 		}
 
