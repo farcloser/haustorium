@@ -43,7 +43,7 @@ haustorium process mymusicfile
 If you want to do it on a folder:
 
 ```bash
-find my_music_folder -type f \( -iname "*.m4a" -o -iname "*.flac" -o -iname "*.mp3" \) -exec haustorium process {} \;
+find my_music_folder -type f \( -iname "*.m4a" -o -iname "*.flac" \) -exec haustorium process {} \;
 ```
 
 ### Advanced

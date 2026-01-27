@@ -5,7 +5,9 @@ usage() {
   cat <<EOF
 Usage: $(basename "$0") [--redact-path] <folder>
 
-Scan a music collection and write a haustorium report.
+Scan a music collection and write a haustorium JSON report.
+
+Each file produces one JSON object per line (JSONL format).
 
 Arguments:
   folder          Directory to scan recursively for .flac and .m4a files
@@ -13,7 +15,7 @@ Arguments:
 Options:
   --redact-path   Strip file paths from the report before writing to disk
 
-Output is written to haustorium-report.txt in the current directory.
+Output is written to haustorium-report.jsonl in the current directory.
 EOF
   exit 1
 }
@@ -85,12 +87,18 @@ fi
 echo "Found $total files to analyze"
 
 # --- Run analysis ---
-output_file="haustorium-report.txt"
+output_file="haustorium-report.jsonl"
 start_time=$(date +%s)
 processed=0
 failed=0
 
-# Write a placeholder header (updated at the end with final stats)
+# jq redaction filter
+if [[ "$redact" == true ]]; then
+  jq_redact='del(.file, .probe?.format?.filename?)'
+else
+  jq_redact='.'
+fi
+
 : > "$output_file"
 
 for file in "${files[@]}"; do
@@ -104,55 +112,36 @@ for file in "${files[@]}"; do
     source_flag=(--source vinyl)
   fi
 
-  result=$(haustorium process "${source_flag[@]}" "$file" 2>&1) || {
-    result="File: $file
-ERROR: analysis failed
-"
-    failed=$((failed + 1))
-  }
-
-  # If severe issues detected, re-run with verbose output and append ffprobe data
-  if echo "$result" | grep -q "worst severity: severe"; then
-    result=$(haustorium process --verbose "${source_flag[@]}" "$file" 2>&1) || true
-    jq_filter='del(.format.tags, .streams[]?.tags, .streams[]?.disposition)'
-    if [[ "$redact" == true ]]; then
-      jq_filter='del(.format.tags, .format.filename, .streams[]?.tags, .streams[]?.disposition)'
+  # Get haustorium analysis as JSON
+  if haus_json=$(haustorium process --format json "${source_flag[@]}" "$file" 2>/dev/null); then
+    # Get ffprobe metadata as JSON
+    if probe_json=$(ffprobe -v quiet -print_format json -show_format -show_streams "$file" 2>/dev/null \
+        | jq 'del(.format.tags, .streams[]?.tags, .streams[]?.disposition)'); then
+      # Merge haustorium analysis + ffprobe — pipe via stdin to avoid ARG_MAX
+      { echo "$haus_json"; echo "$probe_json"; } \
+        | jq -n -c --arg file "$file" \
+          '(input | .[0].meta) as $analysis | input as $probe | {file: $file, analysis: $analysis, probe: $probe}' \
+        | jq -c "$jq_redact" >> "$output_file"
+    else
+      # Haustorium succeeded but ffprobe failed
+      echo "$haus_json" \
+        | jq -n -c --arg file "$file" \
+          '(input | .[0].meta) as $analysis | {file: $file, analysis: $analysis, probe_error: "ffprobe failed"}' \
+        | jq -c "$jq_redact" >> "$output_file"
     fi
-    probe=$(ffprobe -v quiet -print_format json -show_format -show_streams "$file" 2>&1 \
-      | jq "$jq_filter") || probe="ffprobe failed"
-    result+=$'\n'"--- ffprobe ---"$'\n'"$probe"
+  else
+    # Haustorium failed
+    jq -n -c --arg file "$file" --arg error "analysis failed" \
+      '{file: $file, error: $error}' \
+      | jq -c "$jq_redact" >> "$output_file"
+    failed=$((failed + 1))
   fi
-
-  # Redact paths from this entry if requested
-  if [[ "$redact" == true ]]; then
-    result=$(echo "$result" | sed '/^File: /d')
-  fi
-
-  echo "$result" >> "$output_file"
-  echo "" >> "$output_file"
 done
 
 end_time=$(date +%s)
 elapsed=$((end_time - start_time))
 minutes=$((elapsed / 60))
 seconds=$((elapsed % 60))
-
-# --- Prepend final header ---
-header="Haustorium Report
-Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
-Source:     $folder
-Files:      $total ($((total - failed)) succeeded, $failed failed)
-Duration:   ${minutes}m ${seconds}s
-"
-
-if [[ "$redact" == true ]]; then
-  header=$(echo "$header" | sed '/^Source: /d')
-fi
-
-# Prepend header to the report
-tmp=$(mktemp)
-{ echo "$header"; cat "$output_file"; } > "$tmp"
-mv "$tmp" "$output_file"
 
 gzip -kf "$output_file"
 
