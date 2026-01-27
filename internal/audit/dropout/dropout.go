@@ -12,6 +12,7 @@ import (
 
 type Options struct {
 	DeltaThreshold  float64 // normalized; default 0.5 (50% of full scale jump)
+	DeltaNearZero   float64 // at least one side of a delta must be below this; default 0.01
 	ZeroRunMinMs    float64 // minimum zero run to report; default 1.0ms
 	ZeroRunQuietDb  float64 // RMS below this around a zero run = not a dropout; default -50
 	DCWindowMs      float64 // window for DC average; default 50ms
@@ -21,6 +22,7 @@ type Options struct {
 func DefaultOptions() Options {
 	return Options{
 		DeltaThreshold:  0.5,
+		DeltaNearZero:   0.01,
 		ZeroRunMinMs:    1.0,
 		ZeroRunQuietDb:  -50.0,
 		DCWindowMs:      50.0,
@@ -42,9 +44,20 @@ func rmsDb(sqSum float64, sqFilled int) float64 {
 	return -120
 }
 
+// isDeltaDropout returns true if a sample-to-sample jump looks like a real
+// dropout rather than a normal musical transient. A dropout transitions
+// between audible content and near-silence, so at least one of the two
+// samples flanking the jump must be near zero.
+func isDeltaDropout(prev, cur, nearZero float64) bool {
+	return math.Abs(prev) < nearZero || math.Abs(cur) < nearZero
+}
+
 func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutResult, error) {
 	if opts.DeltaThreshold == 0 {
 		opts.DeltaThreshold = 0.5
+	}
+	if opts.DeltaNearZero == 0 {
+		opts.DeltaNearZero = 0.01
 	}
 	if opts.ZeroRunMinMs == 0 {
 		opts.ZeroRunMinMs = 1.0
@@ -134,7 +147,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 						if !firstSample {
 							// Delta detection
 							delta := math.Abs(sample - prevSample[ch])
-							if delta > opts.DeltaThreshold {
+							if delta > opts.DeltaThreshold && isDeltaDropout(prevSample[ch], sample, opts.DeltaNearZero) {
 								result.Events = append(result.Events, types.Event{
 									Frame:    totalFrames,
 									TimeSec:  float64(totalFrames) / sampleRate,
@@ -226,7 +239,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 
 						if !firstSample {
 							delta := math.Abs(sample - prevSample[ch])
-							if delta > opts.DeltaThreshold {
+							if delta > opts.DeltaThreshold && isDeltaDropout(prevSample[ch], sample, opts.DeltaNearZero) {
 								result.Events = append(result.Events, types.Event{
 									Frame:    totalFrames,
 									TimeSec:  float64(totalFrames) / sampleRate,
@@ -310,7 +323,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 
 						if !firstSample {
 							delta := math.Abs(sample - prevSample[ch])
-							if delta > opts.DeltaThreshold {
+							if delta > opts.DeltaThreshold && isDeltaDropout(prevSample[ch], sample, opts.DeltaNearZero) {
 								result.Events = append(result.Events, types.Event{
 									Frame:    totalFrames,
 									TimeSec:  float64(totalFrames) / sampleRate,

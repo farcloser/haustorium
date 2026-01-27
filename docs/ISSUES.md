@@ -83,7 +83,7 @@ in quiet/decaying passages are silently ignored.
 
 ### dropouts: delta detector triggers on normal musical transients
 
-> **OPEN**
+> **FIXED**
 
 The delta detector flags sample-to-sample jumps exceeding `DeltaThreshold`
 (default: 0.5, i.e. 50% of full scale). In percussive or energetic music,
@@ -97,13 +97,14 @@ discontinuities; the audio content simply has aggressive transients.
 
 A real dropout has a specific signature: audio at normal level, sudden
 drop to near-zero, then resumption. A fast musical transient has large
-sample values on both sides of the jump. The current detector cannot
-distinguish between these two cases.
+sample values on both sides of the jump.
 
-**Planned fix:** require that at least one side of a delta event is
-near zero (e.g. `min(abs(prev), abs(cur)) < 0.01`). A genuine dropout
-transitions between normal audio and silence, so one of the two samples
-flanking the jump should be near zero. A musical transient has significant
-amplitude on both sides (e.g. prev=0.35, cur=-0.77) and would be
-filtered out. Alternatively, raise `DeltaThreshold` significantly (e.g.
-1.5), though this reduces sensitivity to subtle discontinuities.
+**Fix:** the delta detector now requires that at least one of the two
+samples flanking a jump is near zero (`DeltaNearZero`, default: 0.01 =
+-40 dB). The `isDeltaDropout()` helper checks
+`abs(prev) < nearZero || abs(cur) < nearZero`. A genuine dropout
+transitions between normal audio and silence, so one side is always near
+zero. Musical transients have significant amplitude on both sides (e.g.
+prev=0.35, cur=-0.77) and are filtered out. The same test track dropped
+from 245 false positives to 4 genuine events, all showing one side at
+full level and the other near zero.
