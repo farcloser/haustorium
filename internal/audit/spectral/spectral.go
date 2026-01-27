@@ -55,136 +55,55 @@ func Analyze(r io.Reader, format types.PCMFormat, opts Options) (*types.Spectral
 		opts.WindowsMax = 100
 	}
 
-	bytesPerSample := int(format.BitDepth / 8)
-	numChannels := int(format.Channels)
-	frameSize := bytesPerSample * numChannels
-
 	fftSize := opts.FFTSize
-	hopSize := fftSize / 2
 
-	window := makeHannWindow(fftSize)
-
-	binCount := fftSize/2 + 1
-	magnitudeSum := make([]float64, binCount)
-
-	var maxVal float64
-	switch format.BitDepth {
-	case types.Depth16:
-		maxVal = 32768.0
-	case types.Depth24:
-		maxVal = 8388608.0
-	case types.Depth32:
-		maxVal = 2147483648.0
+	// Phase 1: Read entire stream into mono-mixed samples.
+	samples, err := readMonoMixed(r, format)
+	if err != nil {
+		return nil, err
 	}
 
-	sampleBuf := make([]float64, fftSize)
-	bufPos := 0
-	bufFilled := 0
+	totalFrames := uint64(len(samples))
 
-	fft := fourier.NewFFT(fftSize)
-	fftIn := make([]float64, fftSize)
-	windowsProcessed := 0
-	var totalFrames uint64
-
-	readBuf := make([]byte, frameSize*4096)
-
-	for {
-		n, err := r.Read(readBuf)
-		if n > 0 {
-			completeFrames := (n / frameSize) * frameSize
-			data := readBuf[:completeFrames]
-
-			switch format.BitDepth {
-			case types.Depth16:
-				for i := 0; i < len(data); i += frameSize {
-					var sum float64
-					for ch := 0; ch < numChannels; ch++ {
-						sample := float64(int16(binary.LittleEndian.Uint16(data[i+ch*2:]))) / maxVal
-						sum += sample
-					}
-					sampleBuf[bufPos] = sum / float64(numChannels)
-					bufPos = (bufPos + 1) % fftSize
-					if bufFilled < fftSize {
-						bufFilled++
-					}
-					totalFrames++
-
-					if bufFilled == fftSize && (totalFrames%uint64(hopSize)) == 0 {
-						if opts.WindowsMax > 0 && windowsProcessed >= opts.WindowsMax {
-							continue
-						}
-						processWindow(sampleBuf, bufPos, window, fftIn, fft, magnitudeSum)
-						windowsProcessed++
-					}
-				}
-			case types.Depth24:
-				for i := 0; i < len(data); i += frameSize {
-					var sum float64
-					for ch := 0; ch < numChannels; ch++ {
-						offset := i + ch*3
-						raw := int32(data[offset]) | int32(data[offset+1])<<8 | int32(data[offset+2])<<16
-						if raw&0x800000 != 0 {
-							raw |= ^0xFFFFFF
-						}
-						sum += float64(raw) / maxVal
-					}
-					sampleBuf[bufPos] = sum / float64(numChannels)
-					bufPos = (bufPos + 1) % fftSize
-					if bufFilled < fftSize {
-						bufFilled++
-					}
-					totalFrames++
-
-					if bufFilled == fftSize && (totalFrames%uint64(hopSize)) == 0 {
-						if opts.WindowsMax > 0 && windowsProcessed >= opts.WindowsMax {
-							continue
-						}
-						processWindow(sampleBuf, bufPos, window, fftIn, fft, magnitudeSum)
-						windowsProcessed++
-					}
-				}
-			case types.Depth32:
-				for i := 0; i < len(data); i += frameSize {
-					var sum float64
-					for ch := 0; ch < numChannels; ch++ {
-						sample := float64(int32(binary.LittleEndian.Uint32(data[i+ch*4:]))) / maxVal
-						sum += sample
-					}
-					sampleBuf[bufPos] = sum / float64(numChannels)
-					bufPos = (bufPos + 1) % fftSize
-					if bufFilled < fftSize {
-						bufFilled++
-					}
-					totalFrames++
-
-					if bufFilled == fftSize && (totalFrames%uint64(hopSize)) == 0 {
-						if opts.WindowsMax > 0 && windowsProcessed >= opts.WindowsMax {
-							continue
-						}
-						processWindow(sampleBuf, bufPos, window, fftIn, fft, magnitudeSum)
-						windowsProcessed++
-					}
-				}
-			}
-		}
-
-		if err == io.EOF {
-			break
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("%w: %w", fault.ErrReadFailure, err)
-		}
-	}
-
-	if windowsProcessed == 0 {
+	if len(samples) < fftSize {
 		return &types.SpectralResult{
-			ClaimedRate: int(format.SampleRate),
+			ClaimedRate: format.SampleRate,
 			Frames:      totalFrames,
 		}, nil
 	}
 
-	// Average magnitude spectrum
+	// Phase 2: Compute evenly spaced window positions.
+	positions := windowPositions(len(samples), fftSize, opts.WindowsMax)
+
+	if len(positions) == 0 {
+		return &types.SpectralResult{
+			ClaimedRate: format.SampleRate,
+			Frames:      totalFrames,
+		}, nil
+	}
+
+	// Phase 3: Process FFT windows.
+	window := makeHannWindow(fftSize)
+	binCount := fftSize/2 + 1
+	magnitudeSum := make([]float64, binCount)
+	fft := fourier.NewFFT(fftSize)
+	fftIn := make([]float64, fftSize)
+
+	for _, pos := range positions {
+		for i := 0; i < fftSize; i++ {
+			fftIn[i] = samples[pos+i] * window[i]
+		}
+
+		coeffs := fft.Coefficients(nil, fftIn)
+
+		for i, c := range coeffs {
+			magnitudeSum[i] += math.Sqrt(real(c)*real(c) + imag(c)*imag(c))
+		}
+	}
+
+	windowsProcessed := len(positions)
+
+	// Average magnitude spectrum.
 	avgMagnitude := make([]float64, binCount)
 	for i := range avgMagnitude {
 		avgMagnitude[i] = magnitudeSum[i] / float64(windowsProcessed)
@@ -193,14 +112,13 @@ func Analyze(r io.Reader, format types.PCMFormat, opts Options) (*types.Spectral
 	binHz := float64(format.SampleRate) / float64(fftSize)
 	nyquist := float64(format.SampleRate) / 2
 
-	// Convert to dB
 	magDb := toDb(avgMagnitude)
 
-	// Reference level: 1-10 kHz average
+	// Reference level: 1-10 kHz average.
 	refLevel := bandAverage(magDb, 1000, 10000, binHz)
 
 	result := &types.SpectralResult{
-		ClaimedRate: int(format.SampleRate),
+		ClaimedRate: format.SampleRate,
 		Frames:      totalFrames,
 	}
 
@@ -227,6 +145,107 @@ func Analyze(r io.Reader, format types.PCMFormat, opts Options) (*types.Spectral
 	return result, nil
 }
 
+// readMonoMixed reads the entire PCM stream and returns mono-mixed samples.
+func readMonoMixed(r io.Reader, format types.PCMFormat) ([]float64, error) {
+	bytesPerSample := int(format.BitDepth / 8)
+	numChannels := int(format.Channels)
+	frameSize := bytesPerSample * numChannels
+
+	var maxVal float64
+	switch format.BitDepth {
+	case types.Depth16:
+		maxVal = 32768.0
+	case types.Depth24:
+		maxVal = 8388608.0
+	case types.Depth32:
+		maxVal = 2147483648.0
+	}
+
+	readBuf := make([]byte, frameSize*4096)
+	var samples []float64
+
+	for {
+		n, err := r.Read(readBuf)
+		if n > 0 {
+			completeFrames := (n / frameSize) * frameSize
+			data := readBuf[:completeFrames]
+
+			switch format.BitDepth {
+			case types.Depth16:
+				for i := 0; i < len(data); i += frameSize {
+					var sum float64
+					for ch := 0; ch < numChannels; ch++ {
+						sum += float64(int16(binary.LittleEndian.Uint16(data[i+ch*2:]))) / maxVal
+					}
+					samples = append(samples, sum/float64(numChannels))
+				}
+			case types.Depth24:
+				for i := 0; i < len(data); i += frameSize {
+					var sum float64
+					for ch := 0; ch < numChannels; ch++ {
+						offset := i + ch*3
+						raw := int32(data[offset]) | int32(data[offset+1])<<8 | int32(data[offset+2])<<16
+						if raw&0x800000 != 0 {
+							raw |= ^0xFFFFFF
+						}
+						sum += float64(raw) / maxVal
+					}
+					samples = append(samples, sum/float64(numChannels))
+				}
+			case types.Depth32:
+				for i := 0; i < len(data); i += frameSize {
+					var sum float64
+					for ch := 0; ch < numChannels; ch++ {
+						sum += float64(int32(binary.LittleEndian.Uint32(data[i+ch*4:]))) / maxVal
+					}
+					samples = append(samples, sum/float64(numChannels))
+				}
+			}
+		}
+
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("%w: %w", fault.ErrReadFailure, err)
+		}
+	}
+
+	return samples, nil
+}
+
+// windowPositions returns evenly spaced FFT window start positions.
+// If the track has fewer possible windows than maxWindows, all are returned.
+// Otherwise, maxWindows positions are distributed evenly across the track.
+func windowPositions(totalSamples, fftSize, maxWindows int) []int {
+	available := totalSamples - fftSize
+	if available < 0 {
+		return nil
+	}
+
+	hopSize := fftSize / 2
+	totalPossible := available/hopSize + 1
+
+	if totalPossible <= maxWindows {
+		positions := make([]int, 0, totalPossible)
+		for pos := 0; pos+fftSize <= totalSamples; pos += hopSize {
+			positions = append(positions, pos)
+		}
+		return positions
+	}
+
+	positions := make([]int, maxWindows)
+	if maxWindows == 1 {
+		positions[0] = available / 2
+		return positions
+	}
+	for i := range maxWindows {
+		positions[i] = available * i / (maxWindows - 1)
+	}
+	return positions
+}
+
 func makeHannWindow(size int) []float64 {
 	window := make([]float64, size)
 	for i := range window {
@@ -235,21 +254,6 @@ func makeHannWindow(size int) []float64 {
 	return window
 }
 
-func processWindow(ringBuf []float64, pos int, window, fftIn []float64, fft *fourier.FFT, magnitudeSum []float64) {
-	n := len(fftIn)
-
-	for i := 0; i < n; i++ {
-		idx := (pos + i) % n
-		fftIn[i] = ringBuf[idx] * window[i]
-	}
-
-	coeffs := fft.Coefficients(nil, fftIn)
-
-	for i, c := range coeffs {
-		mag := math.Sqrt(real(c)*real(c) + imag(c)*imag(c))
-		magnitudeSum[i] += mag
-	}
-}
 
 func toDb(magnitude []float64) []float64 {
 	db := make([]float64, len(magnitude))

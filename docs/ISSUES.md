@@ -2,6 +2,8 @@
 
 ### noise-floor: detection conflates spectral rolloff with noise
 
+> **OPEN**
+
 The noise floor check measures average energy in the 14-18 kHz band relative
 to the 1-10 kHz reference band. This detects elevated broadband noise (tape hiss,
 poor ADC), but it also fires on recordings whose musical content simply has
@@ -18,6 +20,8 @@ measures the actual minimum sustained energy level (true noise floor)
 regardless of the spectral shape of the music.
 
 ### hum: detection triggers on musical content near mains frequencies
+
+> **OPEN**
 
 The hum detector looks for spectral peaks at 50 Hz and 60 Hz harmonics
 (100, 150, 200, 250, 300 Hz and 120, 180, 240, 300, 360 Hz) relative to
@@ -42,6 +46,8 @@ full track would also reduce bias from localized musical content.
 
 ### Spectral analysis limited to first ~9 seconds
 
+> **FIXED**
+
 The spectral analyzer caps at 100 FFT windows (8192 samples, 50% overlap)
 which covers roughly 9 seconds of 44.1 kHz audio. All spectral-derived checks
 (noise floor, hum, lossy transcode, sample rate authenticity, spectral centroid)
@@ -51,10 +57,13 @@ For tracks where the character changes significantly (e.g. quiet intro
 followed by dense arrangement), the spectral results may not represent the
 full recording.
 
-**Planned fix:** sample windows evenly across the full track duration
-instead of taking the first N windows.
+**Fix:** the spectral analyzer now reads the entire track into memory
+and distributes `WindowsMax` FFT windows evenly across the full duration.
+Short tracks that fit within `WindowsMax` windows are still fully analyzed.
 
 ### dropouts: detection counts zero crossings in decaying signal tails
+
+> **OPEN**
 
 The dropout detector flags zero runs of >= 1ms as discontinuities. In a
 decaying signal (fade-out, note release, trailing silence), the waveform
