@@ -187,7 +187,7 @@ var checkNames = map[string]haustorium.Check{
 func parseChecks(raw string) (haustorium.Check, error) {
 	var result haustorium.Check
 
-	for _, name := range strings.Split(raw, ",") {
+	for name := range strings.SplitSeq(raw, ",") {
 		name = strings.TrimSpace(name)
 		if name == "" {
 			continue
@@ -323,6 +323,7 @@ func printVerbose(result *haustorium.Result) {
 		fmt.Printf("  Clipped samples: %d\n", r.ClippedSamples)
 		fmt.Printf("  Longest run:     %d samples\n", r.LongestRun)
 		fmt.Printf("  Total samples:   %d\n", r.Samples)
+
 		for i, ch := range r.Channels {
 			fmt.Printf("  Channel %d:       %d events, %d clipped, longest run %d\n",
 				i, ch.Events, ch.ClippedSamples, ch.LongestRun)
@@ -347,6 +348,7 @@ func printVerbose(result *haustorium.Result) {
 	if r := result.Spectral; r != nil {
 		fmt.Println("\n[Spectral]")
 		fmt.Printf("  Claimed rate:    %d Hz\n", r.ClaimedRate)
+
 		if r.IsUpsampled {
 			fmt.Printf("  Upsampled:       yes (from %d Hz)\n", r.EffectiveRate)
 			fmt.Printf("  Cutoff:          %.0f Hz\n", r.UpsampleCutoff)
@@ -354,6 +356,7 @@ func printVerbose(result *haustorium.Result) {
 		} else {
 			fmt.Printf("  Upsampled:       no\n")
 		}
+
 		if r.IsTranscode {
 			fmt.Printf("  Transcode:       yes (%s)\n", r.LikelyCodec)
 			fmt.Printf("  Cutoff:          %.0f Hz\n", r.TranscodeCutoff)
@@ -361,11 +364,14 @@ func printVerbose(result *haustorium.Result) {
 		} else {
 			fmt.Printf("  Transcode:       no\n")
 		}
+
 		fmt.Printf("  50 Hz hum:       %v\n", r.Has50HzHum)
 		fmt.Printf("  60 Hz hum:       %v\n", r.Has60HzHum)
+
 		if r.Has50HzHum || r.Has60HzHum {
 			fmt.Printf("  Hum level:       %.1f dB\n", r.HumLevelDb)
 		}
+
 		fmt.Printf("  Noise floor:     %.1f dB\n", r.NoiseFloorDb)
 		fmt.Printf("  Centroid:        %.0f Hz\n", r.SpectralCentroid)
 		fmt.Printf("  Frames:          %d\n", r.Frames)
@@ -374,9 +380,11 @@ func printVerbose(result *haustorium.Result) {
 	if r := result.DCOffset; r != nil {
 		fmt.Println("\n[DC Offset]")
 		fmt.Printf("  Overall:         %.6f (%.1f dB)\n", r.Offset, r.OffsetDb)
+
 		for i, ch := range r.Channels {
 			fmt.Printf("  Channel %d:       %.6f\n", i, ch)
 		}
+
 		fmt.Printf("  Samples:         %d\n", r.Samples)
 	}
 
@@ -400,6 +408,7 @@ func printVerbose(result *haustorium.Result) {
 		fmt.Printf("  Trailing:        %.2fs\n", r.TrailingSec)
 		fmt.Printf("  Total silence:   %.2fs\n", r.TotalSilence)
 		fmt.Printf("  Segments:        %d\n", len(r.Segments))
+
 		for i, seg := range r.Segments {
 			fmt.Printf("    %d. %.2f-%.2fs (%.2fs) at %.1f dB\n",
 				i+1, seg.StartSec, seg.EndSec, seg.DurationSec, seg.RmsDb)
@@ -435,8 +444,10 @@ func printVerbose(result *haustorium.Result) {
 		fmt.Printf("  DC jump count:   %d\n", r.DCJumpCount)
 		fmt.Printf("  Worst:           %.1f dB\n", r.WorstDb)
 		fmt.Printf("  Frames:          %d\n", r.Frames)
+
 		if len(r.Events) > 0 {
 			fmt.Printf("  Events:\n")
+
 			for i, e := range r.Events {
 				switch e.Type {
 				case types.EventZeroRun:
@@ -455,5 +466,6 @@ func imbalanceSide(imbalanceDb float64) string {
 	if imbalanceDb >= 0 {
 		return "left"
 	}
+
 	return "right"
 }

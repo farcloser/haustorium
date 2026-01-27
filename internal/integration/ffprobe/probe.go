@@ -9,8 +9,9 @@ import (
 	"log/slog"
 	"os/exec"
 
-	"github.com/farcloser/haustorium/internal/integration/binary"
 	"github.com/farcloser/primordium/fault"
+
+	"github.com/farcloser/haustorium/internal/integration/binary"
 )
 
 type Result struct {
@@ -80,35 +81,37 @@ type Stream struct {
 	StartPts       int64  `json:"start_pts,omitempty"`       // Presentation timestamp of the first frame. Usually 0, but can be non-zero if stream doesn't start at beginning of container.
 	NbFrames       string `json:"nb_frames,omitempty"`       // Number of frames in stream. For FLAC, each frame is a block of samples (typically 4096 samples).
 	ExtradataSize  int    `json:"extradata_size,omitempty"`  // Size of codec-specific header data (e.g., FLAC's STREAMINFO block, AAC's AudioSpecificConfig).
-	//	Disposition    Disposition `json:"disposition"`               // Flags for stream role - default track, dubbed audio, original language, commentary, lyrics, hearing impaired, etc.
+	// 	Disposition    `json:"disposition"`               // Flags for stream role - default track, dubbed audio,
+	// original language, commentary, lyrics, hearing impaired, etc.
 
 	// Video-specific fields.
-	//RFrameRate         string `json:"r_frame_rate"`   // Frame rates - meaningful for video, usually "0/0" for audio streams.
-	//AvgFrameRate       string `json:"avg_frame_rate"` // Frame rates - meaningful for video, usually "0/0" for audio streams.
-	//Width              int    `json:"width,omitempty"`
-	//Height             int    `json:"height,omitempty"`
-	//CodedWidth         int    `json:"coded_width,omitempty"`
-	//CodedHeight        int    `json:"coded_height,omitempty"`
-	//ClosedCaptions     int    `json:"closed_captions,omitempty"`
-	//FilmGrain          int    `json:"film_grain,omitempty"`
-	//HasBFrames         int    `json:"has_b_frames,omitempty"`
-	//SampleAspectRatio  string `json:"sample_aspect_ratio,omitempty"`
-	//DisplayAspectRatio string `json:"display_aspect_ratio,omitempty"`
-	//PixFmt             string `json:"pix_fmt,omitempty"`
-	//Level              int    `json:"level,omitempty"`
-	//ColorRange         string `json:"color_range,omitempty"`
-	//ColorSpace         string `json:"color_space,omitempty"`
-	//ColorTransfer      string `json:"color_transfer,omitempty"`
-	//ColorPrimaries     string `json:"color_primaries,omitempty"`
-	//ChromaLocation     string `json:"chroma_location,omitempty"`
-	//FieldOrder         string `json:"field_order,omitempty"`
-	//Refs               int    `json:"refs,omitempty"`
-	//IsAvc              string `json:"is_avc,omitempty"`
-	//NalLengthSize      string `json:"nal_length_size,omitempty"`
+	// RFrameRate         string `json:"r_frame_rate"`   // Frame rates - meaningful for video, usually "0/0" for audio
+	// streams. AvgFrameRate       string `json:"avg_frame_rate"` // Frame rates - meaningful for video, usually "0/0"
+	// for audio streams.
+	// Width              int    `json:"width,omitempty"`
+	// Height             int    `json:"height,omitempty"`
+	// CodedWidth         int    `json:"coded_width,omitempty"`
+	// CodedHeight        int    `json:"coded_height,omitempty"`
+	// ClosedCaptions     int    `json:"closed_captions,omitempty"`
+	// FilmGrain          int    `json:"film_grain,omitempty"`
+	// HasBFrames         int    `json:"has_b_frames,omitempty"`
+	// SampleAspectRatio  string `json:"sample_aspect_ratio,omitempty"`
+	// DisplayAspectRatio string `json:"display_aspect_ratio,omitempty"`
+	// PixFmt             string `json:"pix_fmt,omitempty"`
+	// Level              int    `json:"level,omitempty"`
+	// ColorRange         string `json:"color_range,omitempty"`
+	// ColorSpace         string `json:"color_space,omitempty"`
+	// ColorTransfer      string `json:"color_transfer,omitempty"`
+	// ColorPrimaries     string `json:"color_primaries,omitempty"`
+	// ChromaLocation     string `json:"chroma_location,omitempty"`
+	// FieldOrder         string `json:"field_order,omitempty"`
+	// Refs               int    `json:"refs,omitempty"`
+	// IsAvc              string `json:"is_avc,omitempty"`
+	// NalLengthSize      string `json:"nal_length_size,omitempty"`
 }
 
 // Disposition indicates stream disposition flags.
-//type Disposition struct {
+// type Disposition struct {
 //	Default         int `json:"default"`
 //	Dub             int `json:"dub"`
 //	Original        int `json:"original"`

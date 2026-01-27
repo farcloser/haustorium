@@ -6,8 +6,9 @@ import (
 	"io"
 	"math"
 
-	"github.com/farcloser/haustorium/internal/types"
 	"github.com/farcloser/primordium/fault"
+
+	"github.com/farcloser/haustorium/internal/types"
 )
 
 type Options struct {
@@ -56,18 +57,23 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 	if opts.DeltaThreshold == 0 {
 		opts.DeltaThreshold = 0.5
 	}
+
 	if opts.DeltaNearZero == 0 {
 		opts.DeltaNearZero = 0.01
 	}
+
 	if opts.ZeroRunMinMs == 0 {
 		opts.ZeroRunMinMs = 1.0
 	}
+
 	if opts.ZeroRunQuietDb == 0 {
 		opts.ZeroRunQuietDb = -50.0
 	}
+
 	if opts.DCWindowMs == 0 {
 		opts.DCWindowMs = 50.0
 	}
+
 	if opts.DCJumpThreshold == 0 {
 		opts.DCJumpThreshold = 0.1
 	}
@@ -80,6 +86,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 	buf := make([]byte, frameSize*4096)
 
 	var maxVal float64
+
 	switch format.BitDepth {
 	case types.Depth16:
 		maxVal = 32768.0
@@ -91,16 +98,15 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 
 	// Per-channel state
 	prevSample := make([]float64, numChannels)
+
 	zeroStart := make([]int64, numChannels) // frame where zero run started (-1 = not in run)
 	for i := range zeroStart {
 		zeroStart[i] = -1
 	}
 
 	// DC offset tracking (simple moving average)
-	dcWindowSize := int(sampleRate * opts.DCWindowMs / 1000)
-	if dcWindowSize < 1 {
-		dcWindowSize = 1
-	}
+	dcWindowSize := max(int(sampleRate*opts.DCWindowMs/1000), 1)
+
 	dcBuf := make([][]float64, numChannels)
 	dcPos := make([]int, numChannels)
 	dcSum := make([]float64, numChannels)
@@ -108,7 +114,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 	prevDC := make([]float64, numChannels)
 	dcInitialized := make([]bool, numChannels)
 
-	for ch := 0; ch < numChannels; ch++ {
+	for ch := range numChannels {
 		dcBuf[ch] = make([]float64, dcWindowSize)
 	}
 
@@ -119,18 +125,18 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 	sqFilled := make([]int, numChannels)
 	zeroStartRms := make([]float64, numChannels)
 
-	for ch := 0; ch < numChannels; ch++ {
+	for ch := range numChannels {
 		sqBuf[ch] = make([]float64, dcWindowSize)
 	}
 
-	minZeroSamples := int(sampleRate * opts.ZeroRunMinMs / 1000)
-	if minZeroSamples < 1 {
-		minZeroSamples = 1
-	}
+	minZeroSamples := max(int(sampleRate*opts.ZeroRunMinMs/1000), 1)
 
 	result := &types.DropoutResult{}
-	var totalFrames uint64
-	var firstSample = true
+
+	var (
+		totalFrames uint64
+		firstSample = true
+	)
 
 	for {
 		n, err := r.Read(buf)
@@ -141,13 +147,14 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 			switch format.BitDepth {
 			case types.Depth16:
 				for i := 0; i < len(data); i += frameSize {
-					for ch := 0; ch < numChannels; ch++ {
+					for ch := range numChannels {
 						sample := float64(int16(binary.LittleEndian.Uint16(data[i+ch*2:]))) / maxVal
 
 						if !firstSample {
 							// Delta detection
 							delta := math.Abs(sample - prevSample[ch])
-							if delta > opts.DeltaThreshold && isDeltaDropout(prevSample[ch], sample, opts.DeltaNearZero) {
+							if delta > opts.DeltaThreshold &&
+								isDeltaDropout(prevSample[ch], sample, opts.DeltaNearZero) {
 								result.Events = append(result.Events, types.Event{
 									Frame:    totalFrames,
 									TimeSec:  float64(totalFrames) / sampleRate,
@@ -179,6 +186,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 										})
 										result.ZeroRunCount++
 									}
+
 									zeroStart[ch] = -1
 								}
 							}
@@ -188,6 +196,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 						old := dcBuf[ch][dcPos[ch]]
 						dcBuf[ch][dcPos[ch]] = sample
 						dcSum[ch] = dcSum[ch] - old + sample
+
 						dcPos[ch] = (dcPos[ch] + 1) % dcWindowSize
 						if dcFilled[ch] < dcWindowSize {
 							dcFilled[ch]++
@@ -208,6 +217,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 									result.DCJumpCount++
 								}
 							}
+
 							prevDC[ch] = currentDC
 							dcInitialized[ch] = true
 						}
@@ -217,6 +227,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 						sq := sample * sample
 						sqBuf[ch][sqPos[ch]] = sq
 						sqSum[ch] = sqSum[ch] - oldSq + sq
+
 						sqPos[ch] = (sqPos[ch] + 1) % dcWindowSize
 						if sqFilled[ch] < dcWindowSize {
 							sqFilled[ch]++
@@ -224,22 +235,26 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 
 						prevSample[ch] = sample
 					}
+
 					totalFrames++
 					firstSample = false
 				}
 			case types.Depth24:
 				for i := 0; i < len(data); i += frameSize {
-					for ch := 0; ch < numChannels; ch++ {
+					for ch := range numChannels {
 						offset := i + ch*3
+
 						raw := int32(data[offset]) | int32(data[offset+1])<<8 | int32(data[offset+2])<<16
 						if raw&0x800000 != 0 {
 							raw |= ^0xFFFFFF
 						}
+
 						sample := float64(raw) / maxVal
 
 						if !firstSample {
 							delta := math.Abs(sample - prevSample[ch])
-							if delta > opts.DeltaThreshold && isDeltaDropout(prevSample[ch], sample, opts.DeltaNearZero) {
+							if delta > opts.DeltaThreshold &&
+								isDeltaDropout(prevSample[ch], sample, opts.DeltaNearZero) {
 								result.Events = append(result.Events, types.Event{
 									Frame:    totalFrames,
 									TimeSec:  float64(totalFrames) / sampleRate,
@@ -270,6 +285,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 										})
 										result.ZeroRunCount++
 									}
+
 									zeroStart[ch] = -1
 								}
 							}
@@ -278,6 +294,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 						old := dcBuf[ch][dcPos[ch]]
 						dcBuf[ch][dcPos[ch]] = sample
 						dcSum[ch] = dcSum[ch] - old + sample
+
 						dcPos[ch] = (dcPos[ch] + 1) % dcWindowSize
 						if dcFilled[ch] < dcWindowSize {
 							dcFilled[ch]++
@@ -298,6 +315,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 									result.DCJumpCount++
 								}
 							}
+
 							prevDC[ch] = currentDC
 							dcInitialized[ch] = true
 						}
@@ -306,6 +324,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 						sq := sample * sample
 						sqBuf[ch][sqPos[ch]] = sq
 						sqSum[ch] = sqSum[ch] - oldSq + sq
+
 						sqPos[ch] = (sqPos[ch] + 1) % dcWindowSize
 						if sqFilled[ch] < dcWindowSize {
 							sqFilled[ch]++
@@ -313,17 +332,19 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 
 						prevSample[ch] = sample
 					}
+
 					totalFrames++
 					firstSample = false
 				}
 			case types.Depth32:
 				for i := 0; i < len(data); i += frameSize {
-					for ch := 0; ch < numChannels; ch++ {
+					for ch := range numChannels {
 						sample := float64(int32(binary.LittleEndian.Uint32(data[i+ch*4:]))) / maxVal
 
 						if !firstSample {
 							delta := math.Abs(sample - prevSample[ch])
-							if delta > opts.DeltaThreshold && isDeltaDropout(prevSample[ch], sample, opts.DeltaNearZero) {
+							if delta > opts.DeltaThreshold &&
+								isDeltaDropout(prevSample[ch], sample, opts.DeltaNearZero) {
 								result.Events = append(result.Events, types.Event{
 									Frame:    totalFrames,
 									TimeSec:  float64(totalFrames) / sampleRate,
@@ -354,6 +375,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 										})
 										result.ZeroRunCount++
 									}
+
 									zeroStart[ch] = -1
 								}
 							}
@@ -362,6 +384,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 						old := dcBuf[ch][dcPos[ch]]
 						dcBuf[ch][dcPos[ch]] = sample
 						dcSum[ch] = dcSum[ch] - old + sample
+
 						dcPos[ch] = (dcPos[ch] + 1) % dcWindowSize
 						if dcFilled[ch] < dcWindowSize {
 							dcFilled[ch]++
@@ -382,6 +405,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 									result.DCJumpCount++
 								}
 							}
+
 							prevDC[ch] = currentDC
 							dcInitialized[ch] = true
 						}
@@ -390,6 +414,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 						sq := sample * sample
 						sqBuf[ch][sqPos[ch]] = sq
 						sqSum[ch] = sqSum[ch] - oldSq + sq
+
 						sqPos[ch] = (sqPos[ch] + 1) % dcWindowSize
 						if sqFilled[ch] < dcWindowSize {
 							sqFilled[ch]++
@@ -397,6 +422,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 
 						prevSample[ch] = sample
 					}
+
 					totalFrames++
 					firstSample = false
 				}
@@ -413,7 +439,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 	}
 
 	// Flush any trailing zero runs
-	for ch := 0; ch < numChannels; ch++ {
+	for ch := range numChannels {
 		if zeroStart[ch] >= 0 {
 			runLength := int64(totalFrames) - zeroStart[ch]
 			if runLength >= int64(minZeroSamples) && zeroStartRms[ch] >= opts.ZeroRunQuietDb {
@@ -433,6 +459,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 
 	// Find worst severity
 	var worstSeverity float64
+
 	for _, e := range result.Events {
 		if e.Type == types.EventDelta || e.Type == types.EventDCJump {
 			if e.Severity > worstSeverity {
@@ -440,6 +467,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 			}
 		}
 	}
+
 	if worstSeverity > 0 {
 		result.WorstDb = 20 * math.Log10(worstSeverity)
 	} else {

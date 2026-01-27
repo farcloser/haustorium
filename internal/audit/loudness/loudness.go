@@ -7,17 +7,18 @@ import (
 	"math"
 	"sort"
 
-	"github.com/farcloser/haustorium/internal/types"
 	"github.com/farcloser/primordium/fault"
+
+	"github.com/farcloser/haustorium/internal/types"
 )
 
-// Biquad filter coefficients
+// Biquad filter coefficients.
 type biquad struct {
 	b0, b1, b2 float64
 	a1, a2     float64
 }
 
-// Biquad filter state
+// Biquad filter state.
 type biquadState struct {
 	z1, z2 float64
 }
@@ -26,15 +27,15 @@ func (s *biquadState) process(b *biquad, in float64) float64 {
 	out := b.b0*in + s.z1
 	s.z1 = b.b1*in - b.a1*out + s.z2
 	s.z2 = b.b2*in - b.a2*out
+
 	return out
 }
 
 // K-weighting filter coefficients for common sample rates
-// Pre-filter (high shelf) + RLB weighting (high pass)
+// Pre-filter (high shelf) + RLB weighting (high pass).
 func getKWeightingFilters(sampleRate int) (pre, rlb biquad) {
 	// Coefficients from ITU-R BS.1770-4
 	// These are computed from the analog prototype transfer functions
-
 	fs := float64(sampleRate)
 
 	// Pre-filter (high shelf)
@@ -70,7 +71,7 @@ func getKWeightingFilters(sampleRate int) (pre, rlb biquad) {
 	return pre, rlb
 }
 
-// Channel weights for surround (we only handle stereo for now)
+// Channel weights for surround (we only handle stereo for now).
 func getChannelWeight(ch, numChannels int) float64 {
 	if numChannels <= 2 {
 		return 1.0
@@ -80,6 +81,7 @@ func getChannelWeight(ch, numChannels int) float64 {
 	if ch >= 3 && ch <= 4 && numChannels > 4 {
 		return 1.41
 	}
+
 	return 1.0
 }
 
@@ -92,6 +94,7 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.LoudnessResult, error)
 	buf := make([]byte, frameSize*4096)
 
 	var maxVal float64
+
 	switch format.BitDepth {
 	case types.Depth16:
 		maxVal = 32768.0
@@ -114,28 +117,39 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.LoudnessResult, error)
 
 	// Accumulators for gated loudness
 	var momentaryPowers []float64 // for integrated calculation
+
 	var shortTermPowers []float64 // for LRA calculation
-	var momentaryMax float64 = -120
-	var shortTermMax float64 = -120
+
+	var (
+		momentaryMax float64 = -120
+		shortTermMax float64 = -120
+	)
 
 	// Ring buffers for windowed measurements
 	momentaryBuf := make([]float64, momentarySize)
 	shortTermBuf := make([]float64, shortTermSize)
-	var momentaryPos, shortTermPos int
-	var momentarySum, shortTermSum float64
-	var momentaryFilled, shortTermFilled int
+
+	var (
+		momentaryPos, shortTermPos       int
+		momentarySum, shortTermSum       float64
+		momentaryFilled, shortTermFilled int
+	)
 
 	// DR calculation: 3s blocks
-	var drBlocks []struct {
-		peak float64
-		rms  float64
-	}
-	var blockSum float64
-	var blockPeak float64
-	var blockSamples int
+	var (
+		drBlocks []struct {
+			peak float64
+			rms  float64
+		}
+		blockSum     float64
+		blockPeak    float64
+		blockSamples int
+	)
 
-	var sampleCount int
-	var totalFrames uint64
+	var (
+		sampleCount int
+		totalFrames uint64
+	)
 
 	for {
 		n, err := r.Read(buf)
@@ -146,10 +160,12 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.LoudnessResult, error)
 			switch format.BitDepth {
 			case types.Depth16:
 				for i := 0; i < len(data); i += frameSize {
-					var framePower float64
-					var framePeak float64
+					var (
+						framePower float64
+						framePeak  float64
+					)
 
-					for ch := 0; ch < numChannels; ch++ {
+					for ch := range numChannels {
 						sample := float64(int16(binary.LittleEndian.Uint16(data[i+ch*2:]))) / maxVal
 
 						// Track peak for DR
@@ -168,9 +184,11 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.LoudnessResult, error)
 
 					// Update DR block
 					blockSum += framePower / float64(numChannels)
+
 					if framePeak > blockPeak {
 						blockPeak = framePeak
 					}
+
 					blockSamples++
 
 					if blockSamples >= blockSize {
@@ -185,6 +203,7 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.LoudnessResult, error)
 					old := momentaryBuf[momentaryPos]
 					momentaryBuf[momentaryPos] = framePower
 					momentarySum = momentarySum - old + framePower
+
 					momentaryPos = (momentaryPos + 1) % momentarySize
 					if momentaryFilled < momentarySize {
 						momentaryFilled++
@@ -194,6 +213,7 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.LoudnessResult, error)
 					old = shortTermBuf[shortTermPos]
 					shortTermBuf[shortTermPos] = framePower
 					shortTermSum = shortTermSum - old + framePower
+
 					shortTermPos = (shortTermPos + 1) % shortTermSize
 					if shortTermFilled < shortTermSize {
 						shortTermFilled++
@@ -207,6 +227,7 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.LoudnessResult, error)
 						if momentaryFilled == momentarySize {
 							momentaryLoudness := -0.691 + 10*math.Log10(momentarySum/float64(momentarySize))
 							momentaryPowers = append(momentaryPowers, momentarySum/float64(momentarySize))
+
 							if momentaryLoudness > momentaryMax {
 								momentaryMax = momentaryLoudness
 							}
@@ -215,6 +236,7 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.LoudnessResult, error)
 						if shortTermFilled == shortTermSize {
 							shortTermLoudness := -0.691 + 10*math.Log10(shortTermSum/float64(shortTermSize))
 							shortTermPowers = append(shortTermPowers, shortTermSum/float64(shortTermSize))
+
 							if shortTermLoudness > shortTermMax {
 								shortTermMax = shortTermLoudness
 							}
@@ -223,15 +245,19 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.LoudnessResult, error)
 				}
 			case types.Depth24:
 				for i := 0; i < len(data); i += frameSize {
-					var framePower float64
-					var framePeak float64
+					var (
+						framePower float64
+						framePeak  float64
+					)
 
-					for ch := 0; ch < numChannels; ch++ {
+					for ch := range numChannels {
 						offset := i + ch*3
+
 						raw := int32(data[offset]) | int32(data[offset+1])<<8 | int32(data[offset+2])<<16
 						if raw&0x800000 != 0 {
 							raw |= ^0xFFFFFF
 						}
+
 						sample := float64(raw) / maxVal
 
 						if abs := math.Abs(sample); abs > framePeak {
@@ -246,9 +272,11 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.LoudnessResult, error)
 					}
 
 					blockSum += framePower / float64(numChannels)
+
 					if framePeak > blockPeak {
 						blockPeak = framePeak
 					}
+
 					blockSamples++
 
 					if blockSamples >= blockSize {
@@ -262,6 +290,7 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.LoudnessResult, error)
 					old := momentaryBuf[momentaryPos]
 					momentaryBuf[momentaryPos] = framePower
 					momentarySum = momentarySum - old + framePower
+
 					momentaryPos = (momentaryPos + 1) % momentarySize
 					if momentaryFilled < momentarySize {
 						momentaryFilled++
@@ -270,6 +299,7 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.LoudnessResult, error)
 					old = shortTermBuf[shortTermPos]
 					shortTermBuf[shortTermPos] = framePower
 					shortTermSum = shortTermSum - old + framePower
+
 					shortTermPos = (shortTermPos + 1) % shortTermSize
 					if shortTermFilled < shortTermSize {
 						shortTermFilled++
@@ -282,6 +312,7 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.LoudnessResult, error)
 						if momentaryFilled == momentarySize {
 							momentaryLoudness := -0.691 + 10*math.Log10(momentarySum/float64(momentarySize))
 							momentaryPowers = append(momentaryPowers, momentarySum/float64(momentarySize))
+
 							if momentaryLoudness > momentaryMax {
 								momentaryMax = momentaryLoudness
 							}
@@ -290,6 +321,7 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.LoudnessResult, error)
 						if shortTermFilled == shortTermSize {
 							shortTermLoudness := -0.691 + 10*math.Log10(shortTermSum/float64(shortTermSize))
 							shortTermPowers = append(shortTermPowers, shortTermSum/float64(shortTermSize))
+
 							if shortTermLoudness > shortTermMax {
 								shortTermMax = shortTermLoudness
 							}
@@ -298,10 +330,12 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.LoudnessResult, error)
 				}
 			case types.Depth32:
 				for i := 0; i < len(data); i += frameSize {
-					var framePower float64
-					var framePeak float64
+					var (
+						framePower float64
+						framePeak  float64
+					)
 
-					for ch := 0; ch < numChannels; ch++ {
+					for ch := range numChannels {
 						sample := float64(int32(binary.LittleEndian.Uint32(data[i+ch*4:]))) / maxVal
 
 						if abs := math.Abs(sample); abs > framePeak {
@@ -316,9 +350,11 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.LoudnessResult, error)
 					}
 
 					blockSum += framePower / float64(numChannels)
+
 					if framePeak > blockPeak {
 						blockPeak = framePeak
 					}
+
 					blockSamples++
 
 					if blockSamples >= blockSize {
@@ -332,6 +368,7 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.LoudnessResult, error)
 					old := momentaryBuf[momentaryPos]
 					momentaryBuf[momentaryPos] = framePower
 					momentarySum = momentarySum - old + framePower
+
 					momentaryPos = (momentaryPos + 1) % momentarySize
 					if momentaryFilled < momentarySize {
 						momentaryFilled++
@@ -340,6 +377,7 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.LoudnessResult, error)
 					old = shortTermBuf[shortTermPos]
 					shortTermBuf[shortTermPos] = framePower
 					shortTermSum = shortTermSum - old + framePower
+
 					shortTermPos = (shortTermPos + 1) % shortTermSize
 					if shortTermFilled < shortTermSize {
 						shortTermFilled++
@@ -352,6 +390,7 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.LoudnessResult, error)
 						if momentaryFilled == momentarySize {
 							momentaryLoudness := -0.691 + 10*math.Log10(momentarySum/float64(momentarySize))
 							momentaryPowers = append(momentaryPowers, momentarySum/float64(momentarySize))
+
 							if momentaryLoudness > momentaryMax {
 								momentaryMax = momentaryLoudness
 							}
@@ -360,6 +399,7 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.LoudnessResult, error)
 						if shortTermFilled == shortTermSize {
 							shortTermLoudness := -0.691 + 10*math.Log10(shortTermSum/float64(shortTermSize))
 							shortTermPowers = append(shortTermPowers, shortTermSum/float64(shortTermSize))
+
 							if shortTermLoudness > shortTermMax {
 								shortTermMax = shortTermLoudness
 							}
@@ -412,8 +452,11 @@ func calculateIntegratedLoudness(powers []float64) float64 {
 	}
 
 	// First pass: absolute gate at -70 LUFS
-	var sum float64
-	var count int
+	var (
+		sum   float64
+		count int
+	)
+
 	for _, p := range powers {
 		lufs := -0.691 + 10*math.Log10(p)
 		if lufs > -70 {
@@ -433,6 +476,7 @@ func calculateIntegratedLoudness(powers []float64) float64 {
 	// Second pass: relative gate
 	sum = 0
 	count = 0
+
 	for _, p := range powers {
 		lufs := -0.691 + 10*math.Log10(p)
 		if lufs > relativeThreshold {
@@ -455,6 +499,7 @@ func calculateLoudnessRange(powers []float64) float64 {
 
 	// Convert to LUFS and filter by absolute gate
 	var lufsValues []float64
+
 	for _, p := range powers {
 		lufs := -0.691 + 10*math.Log10(p)
 		if lufs > -70 {
@@ -471,10 +516,12 @@ func calculateLoudnessRange(powers []float64) float64 {
 	for _, l := range lufsValues {
 		sum += l
 	}
+
 	mean := sum / float64(len(lufsValues))
 	relativeThreshold := mean - 20
 
 	var gated []float64
+
 	for _, l := range lufsValues {
 		if l > relativeThreshold {
 			gated = append(gated, l)
@@ -503,6 +550,7 @@ func calculateDR(blocks []struct{ peak, rms float64 }) (score int, value, peakDb
 	for i, b := range blocks {
 		peaksSorted[i] = b.peak
 	}
+
 	sort.Sort(sort.Reverse(sort.Float64Slice(peaksSorted)))
 
 	// Use second-highest peak (avoid outliers)
@@ -510,6 +558,7 @@ func calculateDR(blocks []struct{ peak, rms float64 }) (score int, value, peakDb
 	if len(peaksSorted) == 1 {
 		peakIdx = 0
 	}
+
 	peak := peaksSorted[peakIdx]
 
 	// Sort blocks by RMS (descending)
@@ -517,18 +566,17 @@ func calculateDR(blocks []struct{ peak, rms float64 }) (score int, value, peakDb
 	for i, b := range blocks {
 		rmsSorted[i] = b.rms
 	}
+
 	sort.Sort(sort.Reverse(sort.Float64Slice(rmsSorted)))
 
 	// Average top 20% of RMS values
-	top20Count := len(rmsSorted) / 5
-	if top20Count < 1 {
-		top20Count = 1
-	}
+	top20Count := max(len(rmsSorted)/5, 1)
 
 	var rmsSum float64
 	for i := 0; i < top20Count; i++ {
 		rmsSum += rmsSorted[i]
 	}
+
 	rms := rmsSum / float64(top20Count)
 
 	if rms == 0 {
@@ -539,10 +587,8 @@ func calculateDR(blocks []struct{ peak, rms float64 }) (score int, value, peakDb
 	dr := 20 * math.Log10(peak/rms)
 
 	// Clamp to DR1-DR20
-	score = int(math.Round(dr))
-	if score < 1 {
-		score = 1
-	}
+	score = max(int(math.Round(dr)), 1)
+
 	if score > 20 {
 		score = 20
 	}

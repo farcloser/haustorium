@@ -33,8 +33,10 @@ func Authenticity(r io.Reader, format types.PCMFormat) (*types.BitDepthAuthentic
 	frameSize := bytesPerSample * int(format.Channels)
 	buf := make([]byte, frameSize*4096)
 
-	var usedBits uint32
-	var samples uint64
+	var (
+		usedBits uint32
+		samples  uint64
+	)
 
 	// Mask for early exit: all lower bits set = genuine
 	var genuineMask uint32
@@ -103,6 +105,7 @@ func effectiveBitDepth(usedBits uint32, claimed types.BitDepth) types.BitDepth {
 		if usedBits&genuineMask32 == 0 {
 			return types.Depth16
 		}
+
 		if usedBits&genuineMask24 == 0 {
 			return types.Depth24
 		}

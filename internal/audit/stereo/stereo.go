@@ -30,11 +30,14 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.StereoResult, error) {
 	frameSize := bytesPerSample * 2
 	buf := make([]byte, frameSize*4096)
 
-	var sumL, sumR, sumLL, sumRR, sumLR float64
-	var sumDiffSq, sumMonoSq, sumStereoSq float64
-	var frames uint64
+	var (
+		sumL, sumR, sumLL, sumRR, sumLR   float64
+		sumDiffSq, sumMonoSq, sumStereoSq float64
+		frames                            uint64
+	)
 
 	var maxVal float64
+
 	switch format.BitDepth {
 	case types.Depth16:
 		maxVal = 32768.0
@@ -76,10 +79,12 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.StereoResult, error) {
 					if leftRaw&0x800000 != 0 {
 						leftRaw |= ^0xFFFFFF
 					}
+
 					rightRaw := int32(data[i+3]) | int32(data[i+4])<<8 | int32(data[i+5])<<16
 					if rightRaw&0x800000 != 0 {
 						rightRaw |= ^0xFFFFFF
 					}
+
 					left := float64(leftRaw) / maxVal
 					right := float64(rightRaw) / maxVal
 
@@ -169,15 +174,19 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.StereoResult, error) {
 	if math.IsInf(diffDb, -1) {
 		diffDb = -120.0
 	}
+
 	if math.IsInf(monoDb, -1) {
 		monoDb = -120.0
 	}
+
 	if math.IsInf(stereoDb, -1) {
 		stereoDb = -120.0
 	}
+
 	if math.IsInf(leftDb, -1) {
 		leftDb = -120.0
 	}
+
 	if math.IsInf(rightDb, -1) {
 		rightDb = -120.0
 	}

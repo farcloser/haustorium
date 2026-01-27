@@ -6,8 +6,9 @@ import (
 	"io"
 	"math"
 
-	"github.com/farcloser/haustorium/internal/types"
 	"github.com/farcloser/primordium/fault"
+
+	"github.com/farcloser/haustorium/internal/types"
 )
 
 type Options struct {
@@ -28,9 +29,11 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.SilenceRe
 	if opts.ThresholdDb == 0 {
 		opts.ThresholdDb = -60.0
 	}
+
 	if opts.MinDurationMs == 0 {
 		opts.MinDurationMs = 1000
 	}
+
 	if opts.WindowMs == 0 {
 		opts.WindowMs = 50
 	}
@@ -40,15 +43,14 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.SilenceRe
 	numChannels := int(format.Channels)
 
 	// Window size in frames
-	windowFrames := int(format.SampleRate) * opts.WindowMs / 1000
-	if windowFrames < 1 {
-		windowFrames = 1
-	}
+	windowFrames := max(int(format.SampleRate)*opts.WindowMs/1000, 1)
+
 	minSilenceFrames := uint64(format.SampleRate) * uint64(opts.MinDurationMs) / 1000
 
 	buf := make([]byte, frameSize*4096)
 
 	var maxVal float64
+
 	switch format.BitDepth {
 	case types.Depth16:
 		maxVal = 32768.0
@@ -60,15 +62,19 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.SilenceRe
 
 	threshold := math.Pow(10, opts.ThresholdDb/20)
 
-	var segments []types.SilenceSegment
-	var currentFrame uint64
-	var windowSumSq float64
-	var windowCount int
+	var (
+		segments     []types.SilenceSegment
+		currentFrame uint64
+		windowSumSq  float64
+		windowCount  int
+	)
 
-	var inSilence bool
-	var silenceStart uint64
-	var silenceSumSq float64
-	var silenceCount uint64
+	var (
+		inSilence    bool
+		silenceStart uint64
+		silenceSumSq float64
+		silenceCount uint64
+	)
 
 	processWindow := func() {
 		if windowCount == 0 {
@@ -95,6 +101,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.SilenceRe
 
 			if silenceFrames >= minSilenceFrames {
 				silenceRms := math.Sqrt(silenceSumSq / float64(silenceCount))
+
 				silenceDb := 20 * math.Log10(silenceRms)
 				if math.IsInf(silenceDb, -1) {
 					silenceDb = -120.0
@@ -109,6 +116,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.SilenceRe
 					RmsDb:       silenceDb,
 				})
 			}
+
 			inSilence = false
 		}
 
@@ -126,10 +134,12 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.SilenceRe
 			case types.Depth16:
 				for i := 0; i < len(data); i += frameSize {
 					var frameSumSq float64
-					for ch := 0; ch < numChannels; ch++ {
+
+					for ch := range numChannels {
 						sample := float64(int16(binary.LittleEndian.Uint16(data[i+ch*2:]))) / maxVal
 						frameSumSq += sample * sample
 					}
+
 					windowSumSq += frameSumSq / float64(numChannels)
 					windowCount++
 					currentFrame++
@@ -141,15 +151,19 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.SilenceRe
 			case types.Depth24:
 				for i := 0; i < len(data); i += frameSize {
 					var frameSumSq float64
-					for ch := 0; ch < numChannels; ch++ {
+
+					for ch := range numChannels {
 						offset := i + ch*3
+
 						raw := int32(data[offset]) | int32(data[offset+1])<<8 | int32(data[offset+2])<<16
 						if raw&0x800000 != 0 {
 							raw |= ^0xFFFFFF
 						}
+
 						sample := float64(raw) / maxVal
 						frameSumSq += sample * sample
 					}
+
 					windowSumSq += frameSumSq / float64(numChannels)
 					windowCount++
 					currentFrame++
@@ -161,10 +175,12 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.SilenceRe
 			case types.Depth32:
 				for i := 0; i < len(data); i += frameSize {
 					var frameSumSq float64
-					for ch := 0; ch < numChannels; ch++ {
+
+					for ch := range numChannels {
 						sample := float64(int32(binary.LittleEndian.Uint32(data[i+ch*4:]))) / maxVal
 						frameSumSq += sample * sample
 					}
+
 					windowSumSq += frameSumSq / float64(numChannels)
 					windowCount++
 					currentFrame++
@@ -195,6 +211,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.SilenceRe
 		silenceFrames := currentFrame - silenceStart
 		if silenceFrames >= minSilenceFrames {
 			silenceRms := math.Sqrt(silenceSumSq / float64(silenceCount))
+
 			silenceDb := 20 * math.Log10(silenceRms)
 			if math.IsInf(silenceDb, -1) {
 				silenceDb = -120.0
@@ -218,12 +235,14 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.SilenceRe
 	}
 
 	var leadingSec, trailingSec float64
+
 	totalDuration := float64(currentFrame) / float64(format.SampleRate)
 
 	if len(segments) > 0 {
 		if segments[0].StartSample == 0 {
 			leadingSec = segments[0].DurationSec
 		}
+
 		last := segments[len(segments)-1]
 		if last.EndSample == currentFrame {
 			trailingSec = last.DurationSec

@@ -6,8 +6,9 @@ import (
 	"io"
 	"math"
 
-	"github.com/farcloser/haustorium/internal/types"
 	"github.com/farcloser/primordium/fault"
+
+	"github.com/farcloser/haustorium/internal/types"
 )
 
 const (
@@ -17,7 +18,7 @@ const (
 )
 
 // Polyphase filter coefficients for 4x oversampling
-// Generated from windowed sinc with Kaiser window (beta=5)
+// Generated from windowed sinc with Kaiser window (beta=5).
 var polyphaseCoeffs [oversample][tapsPerPhase]float64
 
 func init() {
@@ -25,14 +26,15 @@ func init() {
 	// Lowpass at 0.25 normalized frequency (Nyquist of original signal)
 	beta := 5.0 // Kaiser window parameter
 
-	for phase := 0; phase < oversample; phase++ {
-		for tap := 0; tap < tapsPerPhase; tap++ {
+	for phase := range oversample {
+		for tap := range tapsPerPhase {
 			// Filter index in the full filter
 			n := tap*oversample + phase
 			center := float64(totalTaps-1) / 2.0
 
 			// Sinc function
 			x := float64(n) - center
+
 			var sinc float64
 			if math.Abs(x) < 1e-10 {
 				sinc = 1.0
@@ -50,28 +52,32 @@ func init() {
 	}
 
 	// Normalize each phase
-	for phase := 0; phase < oversample; phase++ {
+	for phase := range oversample {
 		var sum float64
-		for tap := 0; tap < tapsPerPhase; tap++ {
+		for tap := range tapsPerPhase {
 			sum += polyphaseCoeffs[phase][tap]
 		}
-		for tap := 0; tap < tapsPerPhase; tap++ {
+
+		for tap := range tapsPerPhase {
 			polyphaseCoeffs[phase][tap] /= sum
 		}
 	}
 }
 
-// Bessel function I0 (modified Bessel function of the first kind, order 0)
+// Bessel function I0 (modified Bessel function of the first kind, order 0).
 func bessel0(x float64) float64 {
-	var sum float64 = 1.0
+	sum := 1.0
+
 	term := 1.0
 	for k := 1; k <= 25; k++ {
 		term *= (x * x) / (4.0 * float64(k) * float64(k))
+
 		sum += term
 		if term < 1e-12 {
 			break
 		}
 	}
+
 	return sum
 }
 
@@ -83,6 +89,7 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 	buf := make([]byte, frameSize*4096)
 
 	var maxVal float64
+
 	switch format.BitDepth {
 	case types.Depth16:
 		maxVal = 32768.0
@@ -98,11 +105,13 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 		history[ch] = make([]float64, tapsPerPhase)
 	}
 
-	var samplePeak float64
-	var truePeak float64
-	var ispCount uint64
-	var ispMax float64
-	var totalFrames uint64
+	var (
+		samplePeak  float64
+		truePeak    float64
+		ispCount    uint64
+		ispMax      float64
+		totalFrames uint64
+	)
 
 	for {
 		n, err := r.Read(buf)
@@ -113,7 +122,7 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 			switch format.BitDepth {
 			case types.Depth16:
 				for i := 0; i < len(data); i += frameSize {
-					for ch := 0; ch < numChannels; ch++ {
+					for ch := range numChannels {
 						sample := float64(int16(binary.LittleEndian.Uint16(data[i+ch*2:]))) / maxVal
 
 						// Track sample peak
@@ -127,9 +136,9 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 						history[ch][tapsPerPhase-1] = sample
 
 						// Compute interpolated samples at each phase
-						for phase := 0; phase < oversample; phase++ {
+						for phase := range oversample {
 							var interp float64
-							for tap := 0; tap < tapsPerPhase; tap++ {
+							for tap := range tapsPerPhase {
 								interp += history[ch][tap] * polyphaseCoeffs[phase][tap]
 							}
 
@@ -141,6 +150,7 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 							// Count ISPs (peaks exceeding 0 dBFS)
 							if absInterp > 1.0 {
 								ispCount++
+
 								overshoot := 20 * math.Log10(absInterp)
 								if overshoot > ispMax {
 									ispMax = overshoot
@@ -148,16 +158,19 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 							}
 						}
 					}
+
 					totalFrames++
 				}
 			case types.Depth24:
 				for i := 0; i < len(data); i += frameSize {
-					for ch := 0; ch < numChannels; ch++ {
+					for ch := range numChannels {
 						offset := i + ch*3
+
 						raw := int32(data[offset]) | int32(data[offset+1])<<8 | int32(data[offset+2])<<16
 						if raw&0x800000 != 0 {
 							raw |= ^0xFFFFFF
 						}
+
 						sample := float64(raw) / maxVal
 
 						absSample := math.Abs(sample)
@@ -168,9 +181,9 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 						copy(history[ch][0:], history[ch][1:])
 						history[ch][tapsPerPhase-1] = sample
 
-						for phase := 0; phase < oversample; phase++ {
+						for phase := range oversample {
 							var interp float64
-							for tap := 0; tap < tapsPerPhase; tap++ {
+							for tap := range tapsPerPhase {
 								interp += history[ch][tap] * polyphaseCoeffs[phase][tap]
 							}
 
@@ -181,6 +194,7 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 
 							if absInterp > 1.0 {
 								ispCount++
+
 								overshoot := 20 * math.Log10(absInterp)
 								if overshoot > ispMax {
 									ispMax = overshoot
@@ -188,11 +202,12 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 							}
 						}
 					}
+
 					totalFrames++
 				}
 			case types.Depth32:
 				for i := 0; i < len(data); i += frameSize {
-					for ch := 0; ch < numChannels; ch++ {
+					for ch := range numChannels {
 						sample := float64(int32(binary.LittleEndian.Uint32(data[i+ch*4:]))) / maxVal
 
 						absSample := math.Abs(sample)
@@ -203,9 +218,9 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 						copy(history[ch][0:], history[ch][1:])
 						history[ch][tapsPerPhase-1] = sample
 
-						for phase := 0; phase < oversample; phase++ {
+						for phase := range oversample {
 							var interp float64
-							for tap := 0; tap < tapsPerPhase; tap++ {
+							for tap := range tapsPerPhase {
 								interp += history[ch][tap] * polyphaseCoeffs[phase][tap]
 							}
 
@@ -216,6 +231,7 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 
 							if absInterp > 1.0 {
 								ispCount++
+
 								overshoot := 20 * math.Log10(absInterp)
 								if overshoot > ispMax {
 									ispMax = overshoot
@@ -223,6 +239,7 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 							}
 						}
 					}
+
 					totalFrames++
 				}
 			}

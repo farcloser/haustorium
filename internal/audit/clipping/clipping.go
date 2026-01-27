@@ -51,26 +51,32 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.ClippingDetection, erro
 					} else {
 						if consecutive[ch] >= 2 {
 							result.Channels[ch].Events++
+
 							result.Channels[ch].ClippedSamples += consecutive[ch]
 							if consecutive[ch] > result.Channels[ch].LongestRun {
 								result.Channels[ch].LongestRun = consecutive[ch]
 							}
+
 							result.Events++
+
 							result.ClippedSamples += consecutive[ch]
 							if consecutive[ch] > result.LongestRun {
 								result.LongestRun = consecutive[ch]
 							}
 						}
+
 						consecutive[ch] = 0
 					}
 				}
 			case types.Depth24:
 				for i := 0; i < len(data); i += 3 {
 					ch := sampleIndex % numChannels
+
 					sample := int32(data[i]) | int32(data[i+1])<<8 | int32(data[i+2])<<16
 					if sample&0x800000 != 0 {
 						sample |= ^0xFFFFFF
 					}
+
 					result.Samples++
 					sampleIndex++
 
@@ -79,16 +85,20 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.ClippingDetection, erro
 					} else {
 						if consecutive[ch] >= 2 {
 							result.Channels[ch].Events++
+
 							result.Channels[ch].ClippedSamples += consecutive[ch]
 							if consecutive[ch] > result.Channels[ch].LongestRun {
 								result.Channels[ch].LongestRun = consecutive[ch]
 							}
+
 							result.Events++
+
 							result.ClippedSamples += consecutive[ch]
 							if consecutive[ch] > result.LongestRun {
 								result.LongestRun = consecutive[ch]
 							}
 						}
+
 						consecutive[ch] = 0
 					}
 				}
@@ -104,16 +114,20 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.ClippingDetection, erro
 					} else {
 						if consecutive[ch] >= 2 {
 							result.Channels[ch].Events++
+
 							result.Channels[ch].ClippedSamples += consecutive[ch]
 							if consecutive[ch] > result.Channels[ch].LongestRun {
 								result.Channels[ch].LongestRun = consecutive[ch]
 							}
+
 							result.Events++
+
 							result.ClippedSamples += consecutive[ch]
 							if consecutive[ch] > result.LongestRun {
 								result.LongestRun = consecutive[ch]
 							}
 						}
+
 						consecutive[ch] = 0
 					}
 				}
@@ -130,14 +144,17 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.ClippingDetection, erro
 	}
 
 	// Flush trailing clips for all channels
-	for ch := 0; ch < numChannels; ch++ {
+	for ch := range numChannels {
 		if consecutive[ch] >= 2 {
 			result.Channels[ch].Events++
+
 			result.Channels[ch].ClippedSamples += consecutive[ch]
 			if consecutive[ch] > result.Channels[ch].LongestRun {
 				result.Channels[ch].LongestRun = consecutive[ch]
 			}
+
 			result.Events++
+
 			result.ClippedSamples += consecutive[ch]
 			if consecutive[ch] > result.LongestRun {
 				result.LongestRun = consecutive[ch]

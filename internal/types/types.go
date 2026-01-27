@@ -614,6 +614,7 @@ func (e EventType) String() string {
 	case EventDCJump:
 		return "dc_jump"
 	}
+
 	return "unknown"
 }
 

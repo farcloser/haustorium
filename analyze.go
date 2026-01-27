@@ -54,7 +54,7 @@ if result.Stereo != nil {
 
 */
 
-// Check represents a high-level audio quality check
+// Check represents a high-level audio quality check.
 type Check int
 
 const (
@@ -76,7 +76,7 @@ const (
 	CheckDynamicRange
 	CheckDropouts
 
-	// Presets
+	// Presets.
 	ChecksDefects = CheckClipping | CheckTruncation | CheckFakeBitDepth |
 		CheckFakeSampleRate | CheckLossyTranscode | CheckDCOffset |
 		CheckFakeStereo | CheckPhaseIssues | CheckInvertedPhase |
@@ -129,7 +129,7 @@ func (c Check) String() string {
 	return "unknown"
 }
 
-// Severity indicates how bad a detected issue is
+// Severity indicates how bad a detected issue is.
 type Severity int
 
 const (
@@ -150,10 +150,11 @@ func (s Severity) String() string {
 	case SeveritySevere:
 		return "severe"
 	}
+
 	return "unknown"
 }
 
-// Issue represents a detected problem
+// Issue represents a detected problem.
 type Issue struct {
 	Check      Check
 	Detected   bool
@@ -179,9 +180,11 @@ func (b Bands) Match(value float64) (Severity, bool) {
 		if value >= b.Severe {
 			return SeveritySevere, true
 		}
+
 		if value >= b.Moderate {
 			return SeverityModerate, true
 		}
+
 		if value >= b.Mild {
 			return SeverityMild, true
 		}
@@ -190,9 +193,11 @@ func (b Bands) Match(value float64) (Severity, bool) {
 		if value <= b.Severe {
 			return SeveritySevere, true
 		}
+
 		if value <= b.Moderate {
 			return SeverityModerate, true
 		}
+
 		if value <= b.Mild {
 			return SeverityMild, true
 		}
@@ -201,7 +206,7 @@ func (b Bands) Match(value float64) (Severity, bool) {
 	return SeverityNone, false
 }
 
-// Options configures the analysis
+// Options configures the analysis.
 type Options struct {
 	Checks Check // which checks to run (default: ChecksAll)
 
@@ -219,8 +224,8 @@ type Options struct {
 	Dropouts         Bands
 
 	// Analyzer thresholds (not severity bands).
-	TranscodeSharpnessDb float64 // default 30
-	UpsampleSharpnessDb  float64 // default 40
+	TranscodeSharpnessDb  float64 // default 30
+	UpsampleSharpnessDb   float64 // default 40
 	DropoutDeltaThreshold float64 // default 0.5
 }
 
@@ -287,8 +292,8 @@ type Source int
 
 const (
 	SourceDigital Source = iota // Clean digital recording (default).
-	SourceVinyl                // Vinyl rip. Higher noise, hum, DC offset tolerance.
-	SourceLive                 // Live recording. Ambient noise, PA hum tolerance.
+	SourceVinyl                 // Vinyl rip. Higher noise, hum, DC offset tolerance.
+	SourceLive                  // Live recording. Ambient noise, PA hum tolerance.
 )
 
 func (s Source) String() string {
@@ -330,7 +335,7 @@ func OptionsForSource(source Source) Options {
 	}
 }
 
-// Result contains all analysis results
+// Result contains all analysis results.
 type Result struct {
 	// High-level issues (what the user asked for)
 	Issues []Issue
@@ -370,14 +375,15 @@ type Result struct {
 	Dropout    *types.DropoutResult
 }
 
-// ReaderFactory provides fresh readers for multiple passes
+// ReaderFactory provides fresh readers for multiple passes.
 type ReaderFactory func() (io.Reader, error)
 
-// Analyze performs comprehensive audio analysis
+// Analyze performs comprehensive audio analysis.
 func Analyze(factory ReaderFactory, format types.PCMFormat, opts Options) (*Result, error) {
 	if opts.Checks == 0 {
 		opts = DefaultOptions()
 	}
+
 	applyDefaults(&opts)
 
 	result := &Result{}
@@ -400,6 +406,7 @@ func Analyze(factory ReaderFactory, format types.PCMFormat, opts Options) (*Resu
 		if err != nil {
 			return nil, err
 		}
+
 		result.Clipping, err = clipping.Detect(r, format)
 		if err != nil {
 			return nil, err
@@ -411,6 +418,7 @@ func Analyze(factory ReaderFactory, format types.PCMFormat, opts Options) (*Resu
 		if err != nil {
 			return nil, err
 		}
+
 		if rs, ok := r.(io.ReadSeeker); ok {
 			result.Truncation, err = truncation.Detect(rs, format, 50)
 			if err != nil {
@@ -424,6 +432,7 @@ func Analyze(factory ReaderFactory, format types.PCMFormat, opts Options) (*Resu
 		if err != nil {
 			return nil, err
 		}
+
 		result.BitDepth, err = bitdepth.Authenticity(r, format)
 		if err != nil {
 			return nil, err
@@ -435,6 +444,7 @@ func Analyze(factory ReaderFactory, format types.PCMFormat, opts Options) (*Resu
 		if err != nil {
 			return nil, err
 		}
+
 		result.Spectral, err = spectral.Analyze(r, format, spectral.DefaultOptions())
 		if err != nil {
 			return nil, err
@@ -446,6 +456,7 @@ func Analyze(factory ReaderFactory, format types.PCMFormat, opts Options) (*Resu
 		if err != nil {
 			return nil, err
 		}
+
 		result.DCOffset, err = dcoffset.Detect(r, format)
 		if err != nil {
 			return nil, err
@@ -457,6 +468,7 @@ func Analyze(factory ReaderFactory, format types.PCMFormat, opts Options) (*Resu
 		if err != nil {
 			return nil, err
 		}
+
 		result.Stereo, err = stereo.Analyze(r, format)
 		if err != nil {
 			return nil, err
@@ -468,6 +480,7 @@ func Analyze(factory ReaderFactory, format types.PCMFormat, opts Options) (*Resu
 		if err != nil {
 			return nil, err
 		}
+
 		result.Silence, err = silence.Detect(r, format, silence.DefaultOptions())
 		if err != nil {
 			return nil, err
@@ -479,6 +492,7 @@ func Analyze(factory ReaderFactory, format types.PCMFormat, opts Options) (*Resu
 		if err != nil {
 			return nil, err
 		}
+
 		result.TruePeak, err = truepeak.Detect(r, format)
 		if err != nil {
 			return nil, err
@@ -490,6 +504,7 @@ func Analyze(factory ReaderFactory, format types.PCMFormat, opts Options) (*Resu
 		if err != nil {
 			return nil, err
 		}
+
 		result.Loudness, err = loudness.Analyze(r, format)
 		if err != nil {
 			return nil, err
@@ -501,6 +516,7 @@ func Analyze(factory ReaderFactory, format types.PCMFormat, opts Options) (*Resu
 		if err != nil {
 			return nil, err
 		}
+
 		result.Dropout, err = dropout.Detect(r, format, dropout.Options{
 			DeltaThreshold: opts.DropoutDeltaThreshold,
 		})
@@ -522,42 +538,55 @@ func applyDefaults(opts *Options) {
 	if opts.Clipping == zeroBands {
 		opts.Clipping = defaults.Clipping
 	}
+
 	if opts.Truncation == zeroBands {
 		opts.Truncation = defaults.Truncation
 	}
+
 	if opts.DCOffset == zeroBands {
 		opts.DCOffset = defaults.DCOffset
 	}
+
 	if opts.ChannelImbalance == zeroBands {
 		opts.ChannelImbalance = defaults.ChannelImbalance
 	}
+
 	if opts.PhaseIssues == zeroBands {
 		opts.PhaseIssues = defaults.PhaseIssues
 	}
+
 	if opts.SilencePadding == zeroBands {
 		opts.SilencePadding = defaults.SilencePadding
 	}
+
 	if opts.Hum == zeroBands {
 		opts.Hum = defaults.Hum
 	}
+
 	if opts.NoiseFloor == zeroBands {
 		opts.NoiseFloor = defaults.NoiseFloor
 	}
+
 	if opts.ISP == zeroBands {
 		opts.ISP = defaults.ISP
 	}
+
 	if opts.DynamicRange == zeroBands {
 		opts.DynamicRange = defaults.DynamicRange
 	}
+
 	if opts.Dropouts == zeroBands {
 		opts.Dropouts = defaults.Dropouts
 	}
+
 	if opts.TranscodeSharpnessDb == 0 {
 		opts.TranscodeSharpnessDb = defaults.TranscodeSharpnessDb
 	}
+
 	if opts.UpsampleSharpnessDb == 0 {
 		opts.UpsampleSharpnessDb = defaults.UpsampleSharpnessDb
 	}
+
 	if opts.DropoutDeltaThreshold == 0 {
 		opts.DropoutDeltaThreshold = defaults.DropoutDeltaThreshold
 	}
@@ -568,6 +597,7 @@ func interpretResults(result *Result, opts Options) {
 	if result.Clipping != nil && opts.Checks&CheckClipping != 0 {
 		events := float64(result.Clipping.Events)
 		severity, detected := opts.Clipping.Match(events)
+
 		var summary string
 
 		switch severity {
@@ -576,7 +606,11 @@ func interpretResults(result *Result, opts Options) {
 		case SeverityMild, SeverityModerate:
 			summary = fmt.Sprintf("%d clipping events", result.Clipping.Events)
 		case SeveritySevere:
-			summary = fmt.Sprintf("%d clipping events, longest run %d samples", result.Clipping.Events, result.Clipping.LongestRun)
+			summary = fmt.Sprintf(
+				"%d clipping events, longest run %d samples",
+				result.Clipping.Events,
+				result.Clipping.LongestRun,
+			)
 		}
 
 		result.HasClipping = detected
@@ -592,6 +626,7 @@ func interpretResults(result *Result, opts Options) {
 	// Truncation
 	if result.Truncation != nil && opts.Checks&CheckTruncation != 0 {
 		severity, detected := opts.Truncation.Match(result.Truncation.FinalRmsDb)
+
 		var summary string
 
 		switch severity {
@@ -618,12 +653,19 @@ func interpretResults(result *Result, opts Options) {
 	// Fake Bit Depth (binary detection, no bands)
 	if result.BitDepth != nil && opts.Checks&CheckFakeBitDepth != 0 {
 		detected := int(result.BitDepth.Effective) < int(result.BitDepth.Claimed)
-		var severity Severity
-		var summary string
+
+		var (
+			severity Severity
+			summary  string
+		)
 
 		if detected {
 			severity = SeveritySevere
-			summary = fmt.Sprintf("Fake %d-bit: actually %d-bit (zero-padded)", result.BitDepth.Claimed, result.BitDepth.Effective)
+			summary = fmt.Sprintf(
+				"Fake %d-bit: actually %d-bit (zero-padded)",
+				result.BitDepth.Claimed,
+				result.BitDepth.Effective,
+			)
 		} else {
 			severity = SeverityNone
 			summary = fmt.Sprintf("Genuine %d-bit", result.BitDepth.Claimed)
@@ -642,12 +684,19 @@ func interpretResults(result *Result, opts Options) {
 	// Fake Sample Rate (binary detection, no bands)
 	if result.Spectral != nil && opts.Checks&CheckFakeSampleRate != 0 {
 		detected := result.Spectral.IsUpsampled
-		var severity Severity
-		var summary string
+
+		var (
+			severity Severity
+			summary  string
+		)
 
 		if detected {
 			severity = SeveritySevere
-			summary = fmt.Sprintf("Fake %d Hz: upsampled from %d Hz", result.Spectral.ClaimedRate, result.Spectral.EffectiveRate)
+			summary = fmt.Sprintf(
+				"Fake %d Hz: upsampled from %d Hz",
+				result.Spectral.ClaimedRate,
+				result.Spectral.EffectiveRate,
+			)
 		} else {
 			severity = SeverityNone
 			summary = fmt.Sprintf("Genuine %d Hz", result.Spectral.ClaimedRate)
@@ -673,12 +722,19 @@ func interpretResults(result *Result, opts Options) {
 	// Lossy Transcode (binary detection, no bands)
 	if result.Spectral != nil && opts.Checks&CheckLossyTranscode != 0 {
 		detected := result.Spectral.IsTranscode
-		var severity Severity
-		var summary string
+
+		var (
+			severity Severity
+			summary  string
+		)
 
 		if detected {
 			severity = SeveritySevere
-			summary = fmt.Sprintf("Lossy transcode detected: likely %s (cutoff %.0f Hz)", result.Spectral.LikelyCodec, result.Spectral.TranscodeCutoff)
+			summary = fmt.Sprintf(
+				"Lossy transcode detected: likely %s (cutoff %.0f Hz)",
+				result.Spectral.LikelyCodec,
+				result.Spectral.TranscodeCutoff,
+			)
 		} else {
 			severity = SeverityNone
 			summary = "No lossy transcode detected"
@@ -697,6 +753,7 @@ func interpretResults(result *Result, opts Options) {
 	// DC Offset
 	if result.DCOffset != nil && opts.Checks&CheckDCOffset != 0 {
 		severity, detected := opts.DCOffset.Match(result.DCOffset.OffsetDb)
+
 		var summary string
 
 		switch severity {
@@ -725,8 +782,11 @@ func interpretResults(result *Result, opts Options) {
 		// Fake Stereo (binary detection, no bands)
 		if opts.Checks&CheckFakeStereo != 0 {
 			detected := result.Stereo.Correlation > 0.98 && result.Stereo.DifferenceDb < -60
-			var severity Severity
-			var summary string
+
+			var (
+				severity Severity
+				summary  string
+			)
 
 			if detected {
 				severity = SeverityModerate
@@ -749,6 +809,7 @@ func interpretResults(result *Result, opts Options) {
 		// Phase Issues (binary detection from cancellation threshold, bands for severity)
 		if opts.Checks&CheckPhaseIssues != 0 {
 			severity, detected := opts.PhaseIssues.Match(result.Stereo.CancellationDb)
+
 			var summary string
 
 			switch severity {
@@ -775,12 +836,18 @@ func interpretResults(result *Result, opts Options) {
 		// Inverted Phase (binary detection, no bands)
 		if opts.Checks&CheckInvertedPhase != 0 {
 			detected := result.Stereo.Correlation < -0.95
-			var severity Severity
-			var summary string
+
+			var (
+				severity Severity
+				summary  string
+			)
 
 			if detected {
 				severity = SeveritySevere
-				summary = fmt.Sprintf("Inverted phase: one channel polarity flipped (correlation %.3f)", result.Stereo.Correlation)
+				summary = fmt.Sprintf(
+					"Inverted phase: one channel polarity flipped (correlation %.3f)",
+					result.Stereo.Correlation,
+				)
 			} else {
 				severity = SeverityNone
 				summary = "Phase polarity OK"
@@ -800,6 +867,7 @@ func interpretResults(result *Result, opts Options) {
 		if opts.Checks&CheckChannelImbalance != 0 {
 			imbalance := abs(result.Stereo.ImbalanceDb)
 			severity, detected := opts.ChannelImbalance.Match(imbalance)
+
 			var summary string
 
 			side := "left"
@@ -837,13 +905,18 @@ func interpretResults(result *Result, opts Options) {
 		}
 
 		severity, detected := opts.SilencePadding.Match(worst)
+
 		var summary string
 
 		switch severity {
 		case SeverityNone:
 			summary = "No excessive silence padding"
 		default:
-			summary = fmt.Sprintf("Silence padding: %.1fs leading, %.1fs trailing", result.Silence.LeadingSec, result.Silence.TrailingSec)
+			summary = fmt.Sprintf(
+				"Silence padding: %.1fs leading, %.1fs trailing",
+				result.Silence.LeadingSec,
+				result.Silence.TrailingSec,
+			)
 		}
 
 		result.HasSilencePadding = detected
@@ -859,8 +932,11 @@ func interpretResults(result *Result, opts Options) {
 	// Hum (binary detection from spectral flags, bands for severity)
 	if result.Spectral != nil && opts.Checks&CheckHum != 0 {
 		detected := result.Spectral.Has50HzHum || result.Spectral.Has60HzHum
-		var severity Severity
-		var summary string
+
+		var (
+			severity Severity
+			summary  string
+		)
 
 		if detected {
 			freqs := ""
@@ -901,6 +977,7 @@ func interpretResults(result *Result, opts Options) {
 	// Noise Floor
 	if result.Spectral != nil && opts.Checks&CheckNoiseFloor != 0 {
 		severity, detected := opts.NoiseFloor.Match(result.Spectral.NoiseFloorDb)
+
 		var summary string
 
 		switch severity {
@@ -928,6 +1005,7 @@ func interpretResults(result *Result, opts Options) {
 	if result.TruePeak != nil && opts.Checks&CheckInterSamplePeaks != 0 {
 		ispCount := float64(result.TruePeak.ISPCount)
 		severity, detected := opts.ISP.Match(ispCount)
+
 		var summary string
 
 		switch severity {
@@ -936,7 +1014,11 @@ func interpretResults(result *Result, opts Options) {
 		case SeverityMild, SeverityModerate:
 			summary = fmt.Sprintf("%d ISPs, max overshoot %.2f dB", result.TruePeak.ISPCount, result.TruePeak.ISPMaxDb)
 		case SeveritySevere:
-			summary = fmt.Sprintf("Pervasive ISPs: %d events, max overshoot %.2f dB", result.TruePeak.ISPCount, result.TruePeak.ISPMaxDb)
+			summary = fmt.Sprintf(
+				"Pervasive ISPs: %d events, max overshoot %.2f dB",
+				result.TruePeak.ISPCount,
+				result.TruePeak.ISPMaxDb,
+			)
 		}
 
 		result.HasInterSamplePeaks = detected
@@ -952,10 +1034,14 @@ func interpretResults(result *Result, opts Options) {
 	// Loudness (informational, no bands)
 	if result.Loudness != nil && opts.Checks&CheckLoudness != 0 {
 		result.Issues = append(result.Issues, Issue{
-			Check:      CheckLoudness,
-			Detected:   false, // informational
-			Severity:   SeverityNone,
-			Summary:    fmt.Sprintf("Loudness: %.1f LUFS, range %.1f LU", result.Loudness.IntegratedLUFS, result.Loudness.LoudnessRange),
+			Check:    CheckLoudness,
+			Detected: false, // informational
+			Severity: SeverityNone,
+			Summary: fmt.Sprintf(
+				"Loudness: %.1f LUFS, range %.1f LU",
+				result.Loudness.IntegratedLUFS,
+				result.Loudness.LoudnessRange,
+			),
 			Confidence: 1.0,
 		})
 	}
@@ -964,6 +1050,7 @@ func interpretResults(result *Result, opts Options) {
 	if result.Loudness != nil && opts.Checks&CheckDynamicRange != 0 {
 		drScore := float64(result.Loudness.DRScore)
 		severity, detected := opts.DynamicRange.Match(drScore)
+
 		var summary string
 
 		switch severity {
@@ -995,20 +1082,45 @@ func interpretResults(result *Result, opts Options) {
 	if result.Dropout != nil && opts.Checks&CheckDropouts != 0 {
 		total := float64(result.Dropout.DeltaCount + result.Dropout.ZeroRunCount + result.Dropout.DCJumpCount)
 		severity, detected := opts.Dropouts.Match(total)
+
 		var summary string
 
 		switch severity {
 		case SeverityNone:
 			summary = "No dropouts or glitches"
 		case SeverityMild:
-			summary = fmt.Sprintf("%d discontinuities (%d jumps, %d zero runs, %d DC shifts; worst: %.1f dB)",
-				int(total), result.Dropout.DeltaCount, result.Dropout.ZeroRunCount, result.Dropout.DCJumpCount, result.Dropout.WorstDb)
+			summary = fmt.Sprintf(
+				"%d discontinuities (%d jumps, %d zero runs, %d DC shifts; worst: %.1f dB)",
+				int(
+					total,
+				),
+				result.Dropout.DeltaCount,
+				result.Dropout.ZeroRunCount,
+				result.Dropout.DCJumpCount,
+				result.Dropout.WorstDb,
+			)
 		case SeverityModerate:
-			summary = fmt.Sprintf("%d discontinuities (%d jumps, %d zero runs, %d DC shifts; worst: %.1f dB)",
-				int(total), result.Dropout.DeltaCount, result.Dropout.ZeroRunCount, result.Dropout.DCJumpCount, result.Dropout.WorstDb)
+			summary = fmt.Sprintf(
+				"%d discontinuities (%d jumps, %d zero runs, %d DC shifts; worst: %.1f dB)",
+				int(
+					total,
+				),
+				result.Dropout.DeltaCount,
+				result.Dropout.ZeroRunCount,
+				result.Dropout.DCJumpCount,
+				result.Dropout.WorstDb,
+			)
 		case SeveritySevere:
-			summary = fmt.Sprintf("%d discontinuities (%d jumps, %d zero runs, %d DC shifts; worst: %.1f dB)",
-				int(total), result.Dropout.DeltaCount, result.Dropout.ZeroRunCount, result.Dropout.DCJumpCount, result.Dropout.WorstDb)
+			summary = fmt.Sprintf(
+				"%d discontinuities (%d jumps, %d zero runs, %d DC shifts; worst: %.1f dB)",
+				int(
+					total,
+				),
+				result.Dropout.DeltaCount,
+				result.Dropout.ZeroRunCount,
+				result.Dropout.DCJumpCount,
+				result.Dropout.WorstDb,
+			)
 		}
 
 		result.HasDropouts = detected
@@ -1026,6 +1138,7 @@ func interpretResults(result *Result, opts Options) {
 		if issue.Detected {
 			result.IssueCount++
 		}
+
 		if issue.Severity > result.WorstSeverity {
 			result.WorstSeverity = issue.Severity
 		}
@@ -1036,6 +1149,7 @@ func boolToConfidence(b bool) float64 {
 	if b {
 		return 0.95
 	}
+
 	return 0.5
 }
 
@@ -1043,5 +1157,6 @@ func abs(x float64) float64 {
 	if x < 0 {
 		return -x
 	}
+
 	return x
 }

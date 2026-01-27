@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -10,13 +11,13 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	haustorium "github.com/farcloser/haustorium"
+	"github.com/farcloser/haustorium"
 	"github.com/farcloser/haustorium/internal/integration/ffmpeg"
 	"github.com/farcloser/haustorium/internal/integration/ffprobe"
 	"github.com/farcloser/haustorium/internal/types"
 )
 
-var errProcessArgs = fmt.Errorf("expected exactly one argument: file path")
+var errProcessArgs = errors.New("expected exactly one argument: file path")
 
 func processCommand() *cli.Command {
 	return &cli.Command{

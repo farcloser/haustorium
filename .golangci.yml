@@ -262,10 +262,11 @@ linters:
             - $all
           allow:
             - $gostd
-            - github.com/farcloser/haustorim
+            - github.com/farcloser/haustorium
             - github.com/farcloser/primordium
             - github.com/farcloser/agar/pkg/agar
             - github.com/containerd/nerdctl/mod/tigron
+            - gonum.org/v1/gonum/dsp/fourier
             - github.com/urfave/cli/v3
 
     staticcheck:

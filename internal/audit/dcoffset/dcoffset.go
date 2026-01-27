@@ -18,9 +18,11 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.DCOffsetResult, error) 
 
 	numChannels := int(format.Channels)
 	channelSums := make([]float64, numChannels)
+
 	var samples uint64
 
 	var maxVal float64
+
 	switch format.BitDepth {
 	case types.Depth16:
 		maxVal = 32768.0
@@ -47,10 +49,12 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.DCOffsetResult, error) 
 			case types.Depth24:
 				for i := 0; i < len(data); i += 3 {
 					ch := (i / 3) % numChannels
+
 					raw := int32(data[i]) | int32(data[i+1])<<8 | int32(data[i+2])<<16
 					if raw&0x800000 != 0 {
 						raw |= ^0xFFFFFF
 					}
+
 					sample := float64(raw) / maxVal
 					channelSums[ch] += sample
 					samples++
@@ -85,12 +89,14 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.DCOffsetResult, error) 
 
 	samplesPerChannel := float64(samples) / float64(numChannels)
 	channelOffsets := make([]float64, numChannels)
+
 	var totalOffset float64
 
-	for ch := 0; ch < numChannels; ch++ {
+	for ch := range numChannels {
 		channelOffsets[ch] = channelSums[ch] / samplesPerChannel
 		totalOffset += math.Abs(channelOffsets[ch])
 	}
+
 	totalOffset /= float64(numChannels)
 
 	offsetDb := 20 * math.Log10(totalOffset)

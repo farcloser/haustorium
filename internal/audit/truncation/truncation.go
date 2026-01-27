@@ -6,8 +6,9 @@ import (
 	"io"
 	"math"
 
-	"github.com/farcloser/haustorium/internal/types"
 	"github.com/farcloser/primordium/fault"
+
+	"github.com/farcloser/haustorium/internal/types"
 )
 
 const (
@@ -18,6 +19,7 @@ func Detect(r io.ReadSeeker, format types.PCMFormat, windowMs uint) (*types.Trun
 	if windowMs == 0 {
 		windowMs = defaultWindowMs
 	}
+
 	bytesPerSample := int(format.BitDepth / 8)
 	tailSamples := format.SampleRate * int(windowMs) / 1000 * int(format.Channels)
 	tailBytes := int64(tailSamples * bytesPerSample)
@@ -38,6 +40,7 @@ func Detect(r io.ReadSeeker, format types.PCMFormat, windowMs uint) (*types.Trun
 	}
 
 	var maxVal float64
+
 	switch format.BitDepth {
 	case types.Depth16:
 		maxVal = 32768.0
@@ -47,9 +50,11 @@ func Detect(r io.ReadSeeker, format types.PCMFormat, windowMs uint) (*types.Trun
 		maxVal = 2147483648.0
 	}
 
-	var sumSquares float64
-	var peak float64
-	var count uint64
+	var (
+		sumSquares float64
+		peak       float64
+		count      uint64
+	)
 
 	completeSamples := (len(buf) / bytesPerSample) * bytesPerSample
 	data := buf[:completeSamples]
@@ -59,10 +64,12 @@ func Detect(r io.ReadSeeker, format types.PCMFormat, windowMs uint) (*types.Trun
 		for i := 0; i < len(data); i += 2 {
 			sample := int16(binary.LittleEndian.Uint16(data[i:]))
 			normalized := float64(sample) / maxVal
+
 			sumSquares += normalized * normalized
 			if abs := math.Abs(normalized); abs > peak {
 				peak = abs
 			}
+
 			count++
 		}
 	case types.Depth24:
@@ -71,21 +78,26 @@ func Detect(r io.ReadSeeker, format types.PCMFormat, windowMs uint) (*types.Trun
 			if sample&0x800000 != 0 {
 				sample |= ^0xFFFFFF
 			}
+
 			normalized := float64(sample) / maxVal
+
 			sumSquares += normalized * normalized
 			if abs := math.Abs(normalized); abs > peak {
 				peak = abs
 			}
+
 			count++
 		}
 	case types.Depth32:
 		for i := 0; i < len(data); i += 4 {
 			sample := int32(binary.LittleEndian.Uint32(data[i:]))
 			normalized := float64(sample) / maxVal
+
 			sumSquares += normalized * normalized
 			if abs := math.Abs(normalized); abs > peak {
 				peak = abs
 			}
+
 			count++
 		}
 	}
@@ -106,6 +118,7 @@ func Detect(r io.ReadSeeker, format types.PCMFormat, windowMs uint) (*types.Trun
 	if math.IsInf(rmsDb, -1) {
 		rmsDb = -120.0
 	}
+
 	if math.IsInf(peakDb, -1) {
 		peakDb = -120.0
 	}
