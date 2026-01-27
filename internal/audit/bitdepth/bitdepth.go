@@ -18,10 +18,12 @@ const (
 // Authenticity detects if audio is zero-padded to a higher bit depth.
 // A "24-bit" file that's really 16-bit will have lower 8 bits always zero.
 func Authenticity(r io.Reader, format types.PCMFormat) (*types.BitDepthAuthenticity, error) {
+	claimed := format.ExpectedBitDepth
+
 	if format.BitDepth == types.Depth16 {
 		return &types.BitDepthAuthenticity{
-			Claimed:   format.BitDepth,
-			Effective: format.BitDepth,
+			Claimed:   claimed,
+			Effective: claimed,
 			IsPadded:  false,
 			Samples:   0,
 		}, nil
@@ -64,7 +66,7 @@ func Authenticity(r io.Reader, format types.PCMFormat) (*types.BitDepthAuthentic
 
 			if usedBits&genuineMask == genuineMask {
 				return &types.BitDepthAuthenticity{
-					Claimed:   format.BitDepth,
+					Claimed:   claimed,
 					Effective: format.BitDepth,
 					IsPadded:  false,
 					Samples:   samples,
@@ -84,9 +86,9 @@ func Authenticity(r io.Reader, format types.PCMFormat) (*types.BitDepthAuthentic
 	effective := effectiveBitDepth(usedBits, format.BitDepth)
 
 	return &types.BitDepthAuthenticity{
-		Claimed:   format.BitDepth,
+		Claimed:   claimed,
 		Effective: effective,
-		IsPadded:  effective < format.BitDepth,
+		IsPadded:  effective < claimed,
 		Samples:   samples,
 	}, nil
 }

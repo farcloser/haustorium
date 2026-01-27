@@ -1,6 +1,6 @@
 # Haustorium
 
-> an audio analysis tool specialized in music defect detection
+> a golang audio analysis tool specialized in music defect detection
 
 > [a rootlike structure that grows into or around another structure to absorb water or nutrients](https://en.wikipedia.org/wiki/Haustorium)
 
@@ -27,7 +27,7 @@ dedicated third-party tools for the more complex analysis.
 You need golang installed on your machine (`brew install go` if you are on macOS).
 
 ```bash
-go install github.com/farcloser/haustorium@latest
+go install github.com/farcloser/haustorium/cmd/haustorium@latest
 ```
 
 ## Usage
@@ -68,7 +68,7 @@ Issues found: 2 (worst severity: mild)
 
    [no issue] [clipping] No clipping detected (confidence: 100%)
    [no issue] [truncation] Clean ending (confidence: 80%)
-   [no issue] [fake-bit-depth] Genuine 32-bit (confidence: 100%)
+   [no issue] [fake-bit-depth] Genuine 16-bit (confidence: 100%)
    [no issue] [fake-sample-rate] Genuine 44100 Hz (confidence: 100%)
    [no issue] [lossy-transcode] No lossy transcode detected (confidence: 50%)
    [no issue] [dc-offset] No DC offset (confidence: 100%)
@@ -103,6 +103,14 @@ Interpreting a 60s jazz vinyl cannot be done the same way as a modern master on 
 
 You can specify `--source=vinyl`, `--source=digital`, `--source=live` to select
 a specific interpretation profile.
+
+### Performance
+
+Expect roughly 2 seconds processing time per file on a reasonable laptop, with a USB SSD drive.
+
+## Known issues and limitations
+
+See [ISSUES](docs/ISSUES.md) for know problems.
 
 ## Design
 
