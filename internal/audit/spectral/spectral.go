@@ -16,12 +16,20 @@ import (
 type Options struct {
 	FFTSize    int // default 8192
 	WindowsMax int // max windows to analyze; 0 = all (default 100)
+
+	// NoiseFlatnessCutoff is the spectral flatness threshold below which HF energy
+	// is considered tonal content rather than noise. Flatness is the Wiener entropy
+	// (geometric mean / arithmetic mean): 1.0 = white noise (flat), 0.0 = pure tone.
+	// Below this cutoff, the noise floor level is capped at -40 dB to avoid false
+	// positives on dark recordings. Default 0.4. Used only by AnalyzeV2.
+	NoiseFlatnessCutoff float64
 }
 
 func DefaultOptions() Options {
 	return Options{
-		FFTSize:    8192,
-		WindowsMax: 100,
+		FFTSize:             8192,
+		WindowsMax:          100,
+		NoiseFlatnessCutoff: 0.4,
 	}
 }
 

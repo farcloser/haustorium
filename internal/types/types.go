@@ -1,3 +1,4 @@
+//nolint:staticcheck // too dumb on Db vs. DB
 package types
 
 type BitDepth uint
@@ -8,6 +9,8 @@ const (
 	Depth32 BitDepth = 32
 )
 
+// PCMFormat of the original input before PCM extraction (except BitDepth, from the PCM, vs. ExpectedBitDepth,
+// from the original media).
 type PCMFormat struct {
 	SampleRate       int
 	BitDepth         BitDepth
@@ -15,6 +18,7 @@ type PCMFormat struct {
 	ExpectedBitDepth BitDepth
 }
 
+// BitDepthAuthenticity contains results returned by the bitdepth analyzer.
 type BitDepthAuthenticity struct {
 	Claimed   BitDepth // what the file says it is
 	Effective BitDepth // what it actually is
@@ -22,12 +26,14 @@ type BitDepthAuthenticity struct {
 	Samples   uint64   // total samples analyzed
 }
 
+// ChannelClipping contains per channel clipping detection results.
 type ChannelClipping struct {
 	Events         uint64
 	ClippedSamples uint64
 	LongestRun     uint64
 }
 
+// ClippingDetection contains overall clipping detection results.
 type ClippingDetection struct {
 	Events         uint64
 	ClippedSamples uint64
@@ -82,6 +88,7 @@ This catches obvious truncations while avoiding false positives on
 intentional hard endings common in electronic music.
 */
 
+// TruncationDetection contains truncation results.
 type TruncationDetection struct {
 	IsTruncated   bool
 	FinalRmsDb    float64 // RMS of final window in dB
@@ -104,6 +111,7 @@ Positive offset = waveform shifted up.
 Negative offset = waveform shifted down.
 */
 
+// DCOffsetResult contains DC offset results.
 type DCOffsetResult struct {
 	Offset   float64   // overall normalized offset (-1.0 to 1.0)
 	OffsetDb float64   // overall offset as dB (more negative = less offset)
@@ -177,6 +185,7 @@ Sign: positive = left louder, negative = right louder.
     }
 */
 
+// StereoResult contains stereo results.
 type StereoResult struct {
 	Correlation    float64 // 1.0 = identical, 0 = uncorrelated, -1.0 = inverted
 	DifferenceDb   float64 // RMS of (L-R) in dB; very negative = identical channels
@@ -231,6 +240,7 @@ Glitch/dropout hunting:
     opts := silence.Options{ThresholdDb: -70, MinDurationMs: 50}
 */
 
+// SilenceSegment represents a silence segment.
 type SilenceSegment struct {
 	StartSample uint64
 	EndSample   uint64
@@ -240,6 +250,7 @@ type SilenceSegment struct {
 	RmsDb       float64 // actual level during this segment
 }
 
+// SilenceResult aggregates all silence segments and provide high level result.
 type SilenceResult struct {
 	Segments      []SilenceSegment
 	TotalSilence  float64 // total silence duration in seconds
@@ -347,6 +358,7 @@ TranscodeSharpness > 50 dB/octave = obvious brick wall
     }
 */
 
+// SpectralResult contains the result of spectral analysis.
 type SpectralResult struct {
 	// Sample rate authenticity
 	ClaimedRate       int
@@ -440,6 +452,7 @@ A file can have:
 | YouTube      | -1.0 dBTP       |
 */
 
+// TruePeakResult contains the peak analysis.
 type TruePeakResult struct {
 	TruePeakDb   float64 // max reconstructed level; > 0 = ISP present
 	SamplePeakDb float64 // max original sample level
@@ -511,6 +524,7 @@ A track can be:
 | -23  | 14  | Broadcast-compliant, dynamic            |
 */
 
+// LoudnessResult contains Peak, RMS, etc.
 type LoudnessResult struct {
 	// EBU R128 LUFS
 	IntegratedLUFS float64 // overall loudness (gated)
@@ -588,6 +602,7 @@ Dropout/Glitch Detection Interpretation
 - DC jumps may cause clipping detection false positives
 */
 
+// An Event is a dropout event.
 type Event struct {
 	Frame      uint64
 	TimeSec    float64
@@ -597,6 +612,7 @@ type Event struct {
 	DurationMs float64 // for zero runs
 }
 
+// An EventType qualifies a dropout event.
 type EventType int
 
 const (
@@ -618,6 +634,7 @@ func (e EventType) String() string {
 	return "unknown"
 }
 
+// DropoutResult aggregates all dropout events.
 type DropoutResult struct {
 	Events       []Event
 	DeltaCount   int     // sudden jumps

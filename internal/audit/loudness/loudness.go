@@ -139,12 +139,12 @@ func newMeter(sampleRate, numChannels int) *meter {
 	pre, rlb := getKWeightingFilters(sampleRate)
 
 	return &meter{
-		numChannels:  numChannels,
-		sampleRate:   sampleRate,
-		pre:          pre,
-		rlb:          rlb,
-		preState:     make([]biquadState, numChannels),
-		rlbState:     make([]biquadState, numChannels),
+		numChannels:   numChannels,
+		sampleRate:    sampleRate,
+		pre:           pre,
+		rlb:           rlb,
+		preState:      make([]biquadState, numChannels),
+		rlbState:      make([]biquadState, numChannels),
 		momentarySize: sampleRate * 400 / 1000,
 		shortTermSize: sampleRate * 3,
 		blockSize:     sampleRate * 3,
@@ -462,7 +462,7 @@ func calculateDR(blocks []drBlock) (score int, value, peakDb, rmsDb float64) {
 	top20Count := max(len(rmsSorted)/5, 1)
 
 	var rmsSum float64
-	for i := 0; i < top20Count; i++ {
+	for i := range top20Count {
 		rmsSum += rmsSorted[i]
 	}
 
@@ -476,11 +476,7 @@ func calculateDR(blocks []drBlock) (score int, value, peakDb, rmsDb float64) {
 	dr := 20 * math.Log10(peak/rms)
 
 	// Clamp to DR1-DR20
-	score = max(int(math.Round(dr)), 1)
-
-	if score > 20 {
-		score = 20
-	}
+	score = min(max(int(math.Round(dr)), 1), 20)
 
 	peakDb = 20 * math.Log10(peak)
 	rmsDb = 20 * math.Log10(rms)
