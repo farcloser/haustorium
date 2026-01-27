@@ -66,6 +66,12 @@ if ! command -v ffprobe &>/dev/null; then
   exit 1
 fi
 
+if ! command -v jq &>/dev/null; then
+  echo "Error: jq not found in PATH" >&2
+  echo "Install with: brew install jq (macOS) or apt install jq (Linux)" >&2
+  exit 1
+fi
+
 # --- Collect files ---
 mapfile -t files < <(find "$folder" -type f \( -iname "*.flac" -o -iname "*.m4a" \) | sort)
 
@@ -83,27 +89,47 @@ output_file="haustorium-report.txt"
 start_time=$(date +%s)
 processed=0
 failed=0
-report=""
+
+# Write a placeholder header (updated at the end with final stats)
+: > "$output_file"
 
 for file in "${files[@]}"; do
   processed=$((processed + 1))
   echo "[$processed/$total] $file"
 
-  result=$(haustorium process "$file" 2>&1) || {
+  # Detect source type from directory path
+  source_flag=()
+  dir=$(dirname "$file")
+  if [[ "$dir" == *[Vv]inyl* ]]; then
+    source_flag=(--source vinyl)
+  fi
+
+  result=$(haustorium process "${source_flag[@]}" "$file" 2>&1) || {
     result="File: $file
 ERROR: analysis failed
 "
     failed=$((failed + 1))
   }
 
-  # If severe issues detected, append comprehensive ffprobe data
+  # If severe issues detected, re-run with verbose output and append ffprobe data
   if echo "$result" | grep -q "worst severity: severe"; then
-    probe=$(ffprobe -v quiet -print_format json -show_format -show_streams -show_chapters "$file" 2>&1) || probe="ffprobe failed"
+    result=$(haustorium process --verbose "${source_flag[@]}" "$file" 2>&1) || true
+    jq_filter='del(.format.tags, .streams[]?.tags, .streams[]?.disposition)'
+    if [[ "$redact" == true ]]; then
+      jq_filter='del(.format.tags, .format.filename, .streams[]?.tags, .streams[]?.disposition)'
+    fi
+    probe=$(ffprobe -v quiet -print_format json -show_format -show_streams "$file" 2>&1 \
+      | jq "$jq_filter") || probe="ffprobe failed"
     result+=$'\n'"--- ffprobe ---"$'\n'"$probe"
   fi
 
-  report+="$result"
-  report+=$'\n\n'
+  # Redact paths from this entry if requested
+  if [[ "$redact" == true ]]; then
+    result=$(echo "$result" | sed '/^File: /d')
+  fi
+
+  echo "$result" >> "$output_file"
+  echo "" >> "$output_file"
 done
 
 end_time=$(date +%s)
@@ -111,7 +137,7 @@ elapsed=$((end_time - start_time))
 minutes=$((elapsed / 60))
 seconds=$((elapsed % 60))
 
-# --- Build final report ---
+# --- Prepend final header ---
 header="Haustorium Report
 Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 Source:     $folder
@@ -119,17 +145,16 @@ Files:      $total ($((total - failed)) succeeded, $failed failed)
 Duration:   ${minutes}m ${seconds}s
 "
 
-full_report="$header
-$report"
-
-# --- Redact paths if requested ---
 if [[ "$redact" == true ]]; then
-  full_report=$(echo "$full_report" | sed '/^File: /d; /^Source: /d')
+  header=$(echo "$header" | sed '/^Source: /d')
 fi
 
-# --- Write to disk ---
-echo "$full_report" > "$output_file"
-gzip -k "$output_file"
+# Prepend header to the report
+tmp=$(mktemp)
+{ echo "$header"; cat "$output_file"; } > "$tmp"
+mv "$tmp" "$output_file"
+
+gzip -kf "$output_file"
 
 echo ""
 echo "Done: $total files in ${minutes}m ${seconds}s ($failed failed)"
