@@ -113,7 +113,7 @@ func AnalyzeV2(r io.Reader, format types.PCMFormat, opts Options) (*types.Spectr
 	detectHumV2(result, windowMagnitudes, binHz, refLevel)
 
 	// === Noise floor V2 (quiet passages + flatness) ===
-	detectNoiseFloorV2(result, windowMagnitudes, windowRMS, binHz, nyquist, opts)
+	detectNoiseFloorV2(result, windowMagnitudes, windowRMS, binHz, nyquist, refLevel, opts)
 
 	// === Spectral centroid ===
 	result.SpectralCentroid = calculateCentroid(avgMagnitude, binHz)
@@ -226,13 +226,14 @@ func detectHumFrequencyV2(windowMagnitudes [][]float64, fundamental, binHz float
 }
 
 // detectNoiseFloorV2 measures noise floor during quiet passages and checks spectral flatness.
-// Both the HF level and the reference level are computed from the same quiet windows
-// to ensure a self-consistent comparison.
+// HF energy is measured from the quietest windows to expose the true noise floor without
+// signal masking. The reference level comes from the full-track average (1-10 kHz) to provide
+// a stable baseline that doesn't collapse during sparse passages.
 func detectNoiseFloorV2(
 	result *types.SpectralResult,
 	windowMagnitudes [][]float64,
 	windowRMS []float64,
-	binHz, nyquist float64,
+	binHz, nyquist, refLevel float64,
 	opts Options,
 ) {
 	if len(windowMagnitudes) == 0 {
@@ -251,14 +252,12 @@ func detectNoiseFloorV2(
 		return
 	}
 
-	// Compute band boundaries.
+	// Compute HF band boundaries.
 	binCount := len(windowMagnitudes[0])
-	refStart := int(1000 / binHz)
-	refEnd := int(10000 / binHz)
 	hfStart := int(14000 / binHz)
 	hfEnd := int(min(18000, nyquist-500) / binHz)
 
-	if hfStart >= binCount || hfEnd <= hfStart || refEnd <= refStart {
+	if hfStart >= binCount || hfEnd <= hfStart {
 		result.NoiseFloorDb = -120
 
 		return
@@ -266,31 +265,21 @@ func detectNoiseFloorV2(
 
 	var (
 		hfSum       float64
-		refSum      float64
 		flatnessSum float64
 	)
 
 	hfBins := hfEnd - hfStart
-	refBins := refEnd - refStart
 
 	for _, wi := range quietIndices {
 		mag := windowMagnitudes[wi]
 
-		// Average HF level (14-18 kHz).
+		// Average HF level (14-18 kHz) from quiet windows.
 		var bandSum float64
 		for i := hfStart; i < hfEnd && i < len(mag); i++ {
 			bandSum += mag[i]
 		}
 
 		hfSum += bandSum / float64(hfBins)
-
-		// Reference level (1-10 kHz) from the same quiet windows.
-		var rBandSum float64
-		for i := refStart; i < refEnd && i < len(mag); i++ {
-			rBandSum += mag[i]
-		}
-
-		refSum += rBandSum / float64(refBins)
 
 		// Spectral flatness in HF band: geometric mean / arithmetic mean.
 		// Approaches 1.0 for noise (flat), lower for tonal content.
@@ -299,13 +288,12 @@ func detectNoiseFloorV2(
 
 	quietWindowCount := float64(len(quietIndices))
 	avgHF := hfSum / quietWindowCount
-	avgRef := refSum / quietWindowCount
 	avgFlatness := flatnessSum / quietWindowCount
 
-	// Convert both to dB and compute relative level.
+	// HF from quiet windows (exposes true noise), reference from full track (stable baseline).
 	hfDb := -120.0
-	if avgHF > 0 && avgRef > 0 {
-		hfDb = 20*math.Log10(avgHF) - 20*math.Log10(avgRef)
+	if avgHF > 0 {
+		hfDb = 20*math.Log10(avgHF) - refLevel
 	}
 
 	result.NoiseFloorDb = hfDb

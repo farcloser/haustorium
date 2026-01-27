@@ -235,7 +235,7 @@ func (s *scannerV2) finalizeV2() *types.DropoutResult {
 
 func DetectV2(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutResult, error) {
 	if opts.DeltaThreshold == 0 {
-		opts.DeltaThreshold = 0.5
+		opts.DeltaThreshold = 0.6
 	}
 
 	if opts.DeltaNearZero == 0 {

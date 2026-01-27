@@ -12,7 +12,7 @@ import (
 )
 
 type Options struct {
-	DeltaThreshold  float64 // normalized; default 0.5 (50% of full scale jump)
+	DeltaThreshold  float64 // normalized; default 0.6 (60% of full scale jump)
 	DeltaNearZero   float64 // at least one side of a delta must be below this; default 0.01
 	ZeroRunMinMs    float64 // minimum zero run to report; default 1.0ms
 	ZeroRunQuietDb  float64 // RMS below this around a zero run = not a dropout; default -50
@@ -22,7 +22,7 @@ type Options struct {
 
 func DefaultOptions() Options {
 	return Options{
-		DeltaThreshold:  0.5,
+		DeltaThreshold:  0.6,
 		DeltaNearZero:   0.01,
 		ZeroRunMinMs:    1.0,
 		ZeroRunQuietDb:  -50.0,
@@ -258,7 +258,7 @@ func isDeltaDropout(prev, cur, nearZero float64) bool {
 
 func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutResult, error) {
 	if opts.DeltaThreshold == 0 {
-		opts.DeltaThreshold = 0.5
+		opts.DeltaThreshold = 0.6
 	}
 
 	if opts.DeltaNearZero == 0 {
