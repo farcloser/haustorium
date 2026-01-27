@@ -163,14 +163,7 @@ install-dev-gotestsum:
 		&& go install gotest.tools/gotestsum@c4a0df2e75a225d979a444342dd3db752b53619f
 	$(call footer, $@)
 
-install-dev-jsonschema:
-	# go-jsonschema: v0.20.0 (omissis fork, 2025-06-19)
-	$(call title, $@)
-	@cd $(MAKEFILE_DIR) \
-		&& go install github.com/atombender/go-jsonschema@v0.20.0
-	$(call footer, $@)
-
-install-dev-tools: install-dev-gotestsum install-dev-jsonschema
+install-dev-tools: install-dev-gotestsum
 	$(call title, $@)
 	# 2026-01-23
 	# - golangci: v2.8.0
