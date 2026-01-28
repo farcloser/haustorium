@@ -311,8 +311,8 @@ func (s Source) String() string {
 }
 
 // ParseSource converts a string to a Source value.
-func ParseSource(s string) (Source, error) {
-	switch s {
+func ParseSource(severity string) (Source, error) {
+	switch severity {
 	case "digital", "":
 		return SourceDigital, nil
 	case "vinyl":
@@ -320,7 +320,7 @@ func ParseSource(s string) (Source, error) {
 	case "live":
 		return SourceLive, nil
 	default:
-		return 0, fmt.Errorf("unknown source %q (valid: digital, vinyl, live)", s)
+		return 0, fmt.Errorf("unknown source %q (valid: digital, vinyl, live)", severity)
 	}
 }
 
@@ -612,6 +612,7 @@ func interpretResults(result *Result, opts Options) {
 				result.Clipping.Events,
 				result.Clipping.LongestRun,
 			)
+		default:
 		}
 
 		result.HasClipping = detected
@@ -639,6 +640,7 @@ func interpretResults(result *Result, opts Options) {
 			summary = fmt.Sprintf("Likely truncated (%.1f dB at end)", result.Truncation.FinalRmsDb)
 		case SeveritySevere:
 			summary = fmt.Sprintf("Truncated mid-audio (%.1f dB at end)", result.Truncation.FinalRmsDb)
+		default:
 		}
 
 		result.HasTruncation = detected
@@ -653,7 +655,7 @@ func interpretResults(result *Result, opts Options) {
 
 	// Fake Bit Depth (binary detection, no bands)
 	if result.BitDepth != nil && opts.Checks&CheckFakeBitDepth != 0 {
-		detected := int(result.BitDepth.Effective) < int(result.BitDepth.Claimed)
+		detected := int(result.BitDepth.Effective) < int(result.BitDepth.Claimed) //nolint:gosec // audio format values are small constants
 
 		var (
 			severity Severity
@@ -766,6 +768,7 @@ func interpretResults(result *Result, opts Options) {
 			summary = fmt.Sprintf("DC offset present (%.1f dB)", result.DCOffset.OffsetDb)
 		case SeveritySevere:
 			summary = fmt.Sprintf("Severe DC offset (%.1f dB)", result.DCOffset.OffsetDb)
+		default:
 		}
 
 		result.HasDCOffset = detected
@@ -822,6 +825,7 @@ func interpretResults(result *Result, opts Options) {
 				summary = fmt.Sprintf("Phase issues: %.1f dB lost in mono", result.Stereo.CancellationDb)
 			case SeveritySevere:
 				summary = fmt.Sprintf("Severe phase issues: %.1f dB cancellation in mono", result.Stereo.CancellationDb)
+			default:
 			}
 
 			result.HasPhaseIssues = detected
@@ -885,6 +889,7 @@ func interpretResults(result *Result, opts Options) {
 				summary = fmt.Sprintf("Channel imbalance: %s louder by %.1f dB", side, imbalance)
 			case SeveritySevere:
 				summary = fmt.Sprintf("Severe imbalance: %s louder by %.1f dB", side, imbalance)
+			default:
 			}
 
 			result.HasChannelImbalance = detected
@@ -990,6 +995,7 @@ func interpretResults(result *Result, opts Options) {
 			summary = fmt.Sprintf("Elevated noise floor (%.1f dB)", result.Spectral.NoiseFloorDb)
 		case SeveritySevere:
 			summary = fmt.Sprintf("High noise floor (%.1f dB)", result.Spectral.NoiseFloorDb)
+		default:
 		}
 
 		result.HasHighNoiseFloor = detected
@@ -1020,6 +1026,7 @@ func interpretResults(result *Result, opts Options) {
 				result.TruePeak.ISPCount,
 				result.TruePeak.ISPMaxDb,
 			)
+		default:
 		}
 
 		result.HasInterSamplePeaks = detected
@@ -1067,6 +1074,7 @@ func interpretResults(result *Result, opts Options) {
 			summary = fmt.Sprintf("Heavily compressed (DR%d)", result.Loudness.DRScore)
 		case SeveritySevere:
 			summary = fmt.Sprintf("Brickwalled (DR%d)", result.Loudness.DRScore)
+		default:
 		}
 
 		result.IsBrickwalled = detected
@@ -1122,6 +1130,7 @@ func interpretResults(result *Result, opts Options) {
 				result.Dropout.DCJumpCount,
 				result.Dropout.WorstDb,
 			)
+		default:
 		}
 
 		result.HasDropouts = detected

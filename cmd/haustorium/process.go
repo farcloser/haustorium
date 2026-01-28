@@ -85,7 +85,7 @@ func processCommand() *cli.Command {
 			}
 
 			// Extract PCM (32-bit) from the file via ffmpeg.
-			file, openErr := os.Open(filePath)
+			file, openErr := os.Open(filePath) //nolint:gosec // CLI tool opens user-specified audio files
 			if openErr != nil {
 				return fmt.Errorf("opening file: %w", openErr)
 			}
@@ -153,7 +153,7 @@ func buildPCMFormat(stream *ffprobe.Stream) (types.PCMFormat, error) {
 	return types.PCMFormat{
 		SampleRate:       sampleRate,
 		BitDepth:         types.Depth32,
-		Channels:         uint(stream.Channels),
+		Channels:         uint(stream.Channels), //nolint:gosec // validated positive value
 		ExpectedBitDepth: resolveExpectedBitDepth(stream),
 	}, nil
 }

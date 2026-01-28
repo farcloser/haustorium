@@ -11,12 +11,12 @@ import (
 	"github.com/farcloser/haustorium/internal/types"
 )
 
-func Detect(r io.Reader, format types.PCMFormat) (*types.DCOffsetResult, error) {
-	bytesPerSample := int(format.BitDepth / 8)
-	frameSize := bytesPerSample * int(format.Channels)
+func Detect(reader io.Reader, format types.PCMFormat) (*types.DCOffsetResult, error) {
+	bytesPerSample := int(format.BitDepth / 8) //nolint:gosec // bit depth and channel count are small constants
+	frameSize := bytesPerSample * int(format.Channels) //nolint:gosec // bit depth and channel count are small constants
 	buf := make([]byte, frameSize*4096)
 
-	numChannels := int(format.Channels)
+	numChannels := int(format.Channels) //nolint:gosec // channel count is small
 	channelSums := make([]float64, numChannels)
 
 	var samples uint64
@@ -30,10 +30,11 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.DCOffsetResult, error) 
 		maxVal = 8388608.0
 	case types.Depth32:
 		maxVal = 2147483648.0
+	default:
 	}
 
 	for {
-		n, err := r.Read(buf)
+		n, err := reader.Read(buf)
 		if n > 0 {
 			completeFrames := (n / frameSize) * frameSize
 			data := buf[:completeFrames]
@@ -41,14 +42,14 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.DCOffsetResult, error) 
 			switch format.BitDepth {
 			case types.Depth16:
 				for i := 0; i < len(data); i += 2 {
-					ch := (i / 2) % numChannels
-					sample := float64(int16(binary.LittleEndian.Uint16(data[i:]))) / maxVal
-					channelSums[ch] += sample
+					channel := (i / 2) % numChannels
+					sample := float64(int16(binary.LittleEndian.Uint16(data[i:]))) / maxVal //nolint:gosec // two's complement conversion for signed PCM samples
+					channelSums[channel] += sample
 					samples++
 				}
 			case types.Depth24:
 				for i := 0; i < len(data); i += 3 {
-					ch := (i / 3) % numChannels
+					channel := (i / 3) % numChannels
 
 					raw := int32(data[i]) | int32(data[i+1])<<8 | int32(data[i+2])<<16
 					if raw&0x800000 != 0 {
@@ -56,16 +57,17 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.DCOffsetResult, error) 
 					}
 
 					sample := float64(raw) / maxVal
-					channelSums[ch] += sample
+					channelSums[channel] += sample
 					samples++
 				}
 			case types.Depth32:
 				for i := 0; i < len(data); i += 4 {
-					ch := (i / 4) % numChannels
-					sample := float64(int32(binary.LittleEndian.Uint32(data[i:]))) / maxVal
-					channelSums[ch] += sample
+					channel := (i / 4) % numChannels
+					sample := float64(int32(binary.LittleEndian.Uint32(data[i:]))) / maxVal //nolint:gosec // two's complement conversion for signed PCM samples
+					channelSums[channel] += sample
 					samples++
 				}
+			default:
 			}
 		}
 
@@ -92,9 +94,9 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.DCOffsetResult, error) 
 
 	var totalOffset float64
 
-	for ch := range numChannels {
-		channelOffsets[ch] = channelSums[ch] / samplesPerChannel
-		totalOffset += math.Abs(channelOffsets[ch])
+	for channel := range numChannels {
+		channelOffsets[channel] = channelSums[channel] / samplesPerChannel
+		totalOffset += math.Abs(channelOffsets[channel])
 	}
 
 	totalOffset /= float64(numChannels)

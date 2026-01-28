@@ -17,7 +17,7 @@ const (
 
 // Authenticity detects if audio is zero-padded to a higher bit depth.
 // A "24-bit" file that's really 16-bit will have lower 8 bits always zero.
-func Authenticity(r io.Reader, format types.PCMFormat) (*types.BitDepthAuthenticity, error) {
+func Authenticity(reader io.Reader, format types.PCMFormat) (*types.BitDepthAuthenticity, error) {
 	claimed := format.ExpectedBitDepth
 
 	if format.BitDepth == types.Depth16 {
@@ -29,8 +29,8 @@ func Authenticity(r io.Reader, format types.PCMFormat) (*types.BitDepthAuthentic
 		}, nil
 	}
 
-	bytesPerSample := int(format.BitDepth / 8)
-	frameSize := bytesPerSample * int(format.Channels)
+	bytesPerSample := int(format.BitDepth / 8) //nolint:gosec // bit depth and channel count are small constants
+	frameSize := bytesPerSample * int(format.Channels) //nolint:gosec // bit depth and channel count are small constants
 	buf := make([]byte, frameSize*4096)
 
 	var (
@@ -47,7 +47,7 @@ func Authenticity(r io.Reader, format types.PCMFormat) (*types.BitDepthAuthentic
 	}
 
 	for {
-		n, err := r.Read(buf)
+		n, err := reader.Read(buf)
 		if n > 0 {
 			completeSamples := (n / bytesPerSample) * bytesPerSample
 			data := buf[:completeSamples]
@@ -64,6 +64,7 @@ func Authenticity(r io.Reader, format types.PCMFormat) (*types.BitDepthAuthentic
 					usedBits |= binary.LittleEndian.Uint32(data[i:])
 					samples++
 				}
+			default:
 			}
 
 			if usedBits&genuineMask == genuineMask {

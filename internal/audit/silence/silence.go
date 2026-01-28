@@ -38,14 +38,14 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.SilenceRe
 		opts.WindowMs = 50
 	}
 
-	bytesPerSample := int(format.BitDepth / 8)
-	frameSize := bytesPerSample * int(format.Channels)
-	numChannels := int(format.Channels)
+	bytesPerSample := int(format.BitDepth / 8)              //nolint:gosec // bit depth and channel count are small constants
+	frameSize := bytesPerSample * int(format.Channels)     //nolint:gosec // bit depth and channel count are small constants
+	numChannels := int(format.Channels)                    //nolint:gosec // bit depth and channel count are small constants
 
 	// Window size in frames
 	windowFrames := max(format.SampleRate*opts.WindowMs/1000, 1)
 
-	minSilenceFrames := uint64(format.SampleRate) * uint64(opts.MinDurationMs) / 1000
+	minSilenceFrames := uint64(format.SampleRate) * uint64(opts.MinDurationMs) / 1000 //nolint:gosec // value is non-negative by construction
 
 	buf := make([]byte, frameSize*4096)
 
@@ -58,6 +58,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.SilenceRe
 		maxVal = 8388608.0
 	case types.Depth32:
 		maxVal = 2147483648.0
+	default:
 	}
 
 	threshold := math.Pow(10, opts.ThresholdDb/20)
@@ -88,16 +89,16 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.SilenceRe
 		case isSilent && !inSilence:
 			// Entering silence
 			inSilence = true
-			silenceStart = currentFrame - uint64(windowCount)
+			silenceStart = currentFrame - uint64(windowCount) //nolint:gosec // value is non-negative by construction
 			silenceSumSq = windowSumSq
-			silenceCount = uint64(windowCount)
+			silenceCount = uint64(windowCount) //nolint:gosec // value is non-negative by construction
 		case isSilent && inSilence:
 			// Continuing silence
 			silenceSumSq += windowSumSq
-			silenceCount += uint64(windowCount)
+			silenceCount += uint64(windowCount) //nolint:gosec // value is non-negative by construction
 		case !isSilent && inSilence:
 			// Exiting silence
-			silenceEnd := currentFrame - uint64(windowCount)
+			silenceEnd := currentFrame - uint64(windowCount) //nolint:gosec // value is non-negative by construction
 			silenceFrames := silenceEnd - silenceStart
 
 			if silenceFrames >= minSilenceFrames {
@@ -119,6 +120,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.SilenceRe
 			}
 
 			inSilence = false
+		default:
 		}
 
 		windowSumSq = 0
@@ -137,7 +139,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.SilenceRe
 					var frameSumSq float64
 
 					for ch := range numChannels {
-						sample := float64(int16(binary.LittleEndian.Uint16(data[i+ch*2:]))) / maxVal
+						sample := float64(int16(binary.LittleEndian.Uint16(data[i+ch*2:]))) / maxVal //nolint:gosec // two's complement conversion for signed PCM samples
 						frameSumSq += sample * sample
 					}
 
@@ -178,7 +180,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.SilenceRe
 					var frameSumSq float64
 
 					for ch := range numChannels {
-						sample := float64(int32(binary.LittleEndian.Uint32(data[i+ch*4:]))) / maxVal
+						sample := float64(int32(binary.LittleEndian.Uint32(data[i+ch*4:]))) / maxVal //nolint:gosec // two's complement conversion for signed PCM samples
 						frameSumSq += sample * sample
 					}
 
@@ -190,6 +192,7 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.SilenceRe
 						processWindow()
 					}
 				}
+			default:
 			}
 		}
 

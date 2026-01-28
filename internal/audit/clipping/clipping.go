@@ -20,11 +20,11 @@ const (
 )
 
 func Detect(r io.Reader, format types.PCMFormat) (*types.ClippingDetection, error) {
-	bytesPerSample := int(format.BitDepth / 8)
-	frameSize := bytesPerSample * int(format.Channels)
+	bytesPerSample := int(format.BitDepth / 8) //nolint:gosec // bit depth and channel count are small constants
+	frameSize := bytesPerSample * int(format.Channels) //nolint:gosec // bit depth and channel count are small constants
 	buf := make([]byte, frameSize*4096)
 
-	numChannels := int(format.Channels)
+	numChannels := int(format.Channels) //nolint:gosec // channel count is small
 	result := &types.ClippingDetection{
 		Channels: make([]types.ChannelClipping, numChannels),
 	}
@@ -41,36 +41,36 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.ClippingDetection, erro
 			switch format.BitDepth {
 			case types.Depth16:
 				for i := 0; i < len(data); i += 2 {
-					ch := sampleIndex % numChannels
-					sample := int16(binary.LittleEndian.Uint16(data[i:]))
+					channel := sampleIndex % numChannels
+					sample := int16(binary.LittleEndian.Uint16(data[i:])) //nolint:gosec // two's complement conversion for signed PCM samples
 					result.Samples++
 					sampleIndex++
 
 					if sample == max16 || sample == min16 {
-						consecutive[ch]++
+						consecutive[channel]++
 					} else {
-						if consecutive[ch] >= 2 {
-							result.Channels[ch].Events++
+						if consecutive[channel] >= 2 {
+							result.Channels[channel].Events++
 
-							result.Channels[ch].ClippedSamples += consecutive[ch]
-							if consecutive[ch] > result.Channels[ch].LongestRun {
-								result.Channels[ch].LongestRun = consecutive[ch]
+							result.Channels[channel].ClippedSamples += consecutive[channel]
+							if consecutive[channel] > result.Channels[channel].LongestRun {
+								result.Channels[channel].LongestRun = consecutive[channel]
 							}
 
 							result.Events++
 
-							result.ClippedSamples += consecutive[ch]
-							if consecutive[ch] > result.LongestRun {
-								result.LongestRun = consecutive[ch]
+							result.ClippedSamples += consecutive[channel]
+							if consecutive[channel] > result.LongestRun {
+								result.LongestRun = consecutive[channel]
 							}
 						}
 
-						consecutive[ch] = 0
+						consecutive[channel] = 0
 					}
 				}
 			case types.Depth24:
 				for i := 0; i < len(data); i += 3 {
-					ch := sampleIndex % numChannels
+					channel := sampleIndex % numChannels
 
 					sample := int32(data[i]) | int32(data[i+1])<<8 | int32(data[i+2])<<16
 					if sample&0x800000 != 0 {
@@ -81,54 +81,54 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.ClippingDetection, erro
 					sampleIndex++
 
 					if sample == max24 || sample == min24 {
-						consecutive[ch]++
+						consecutive[channel]++
 					} else {
-						if consecutive[ch] >= 2 {
-							result.Channels[ch].Events++
+						if consecutive[channel] >= 2 {
+							result.Channels[channel].Events++
 
-							result.Channels[ch].ClippedSamples += consecutive[ch]
-							if consecutive[ch] > result.Channels[ch].LongestRun {
-								result.Channels[ch].LongestRun = consecutive[ch]
+							result.Channels[channel].ClippedSamples += consecutive[channel]
+							if consecutive[channel] > result.Channels[channel].LongestRun {
+								result.Channels[channel].LongestRun = consecutive[channel]
 							}
 
 							result.Events++
 
-							result.ClippedSamples += consecutive[ch]
-							if consecutive[ch] > result.LongestRun {
-								result.LongestRun = consecutive[ch]
+							result.ClippedSamples += consecutive[channel]
+							if consecutive[channel] > result.LongestRun {
+								result.LongestRun = consecutive[channel]
 							}
 						}
 
-						consecutive[ch] = 0
+						consecutive[channel] = 0
 					}
 				}
 			case types.Depth32:
 				for i := 0; i < len(data); i += 4 {
-					ch := sampleIndex % numChannels
-					sample := int32(binary.LittleEndian.Uint32(data[i:]))
+					channel := sampleIndex % numChannels
+					sample := int32(binary.LittleEndian.Uint32(data[i:])) //nolint:gosec // two's complement conversion for signed PCM samples
 					result.Samples++
 					sampleIndex++
 
 					if sample == max32 || sample == min32 {
-						consecutive[ch]++
+						consecutive[channel]++
 					} else {
-						if consecutive[ch] >= 2 {
-							result.Channels[ch].Events++
+						if consecutive[channel] >= 2 {
+							result.Channels[channel].Events++
 
-							result.Channels[ch].ClippedSamples += consecutive[ch]
-							if consecutive[ch] > result.Channels[ch].LongestRun {
-								result.Channels[ch].LongestRun = consecutive[ch]
+							result.Channels[channel].ClippedSamples += consecutive[channel]
+							if consecutive[channel] > result.Channels[channel].LongestRun {
+								result.Channels[channel].LongestRun = consecutive[channel]
 							}
 
 							result.Events++
 
-							result.ClippedSamples += consecutive[ch]
-							if consecutive[ch] > result.LongestRun {
-								result.LongestRun = consecutive[ch]
+							result.ClippedSamples += consecutive[channel]
+							if consecutive[channel] > result.LongestRun {
+								result.LongestRun = consecutive[channel]
 							}
 						}
 
-						consecutive[ch] = 0
+						consecutive[channel] = 0
 					}
 				}
 			default:
@@ -145,20 +145,20 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.ClippingDetection, erro
 	}
 
 	// Flush trailing clips for all channels
-	for ch := range numChannels {
-		if consecutive[ch] >= 2 {
-			result.Channels[ch].Events++
+	for channel := range numChannels {
+		if consecutive[channel] >= 2 {
+			result.Channels[channel].Events++
 
-			result.Channels[ch].ClippedSamples += consecutive[ch]
-			if consecutive[ch] > result.Channels[ch].LongestRun {
-				result.Channels[ch].LongestRun = consecutive[ch]
+			result.Channels[channel].ClippedSamples += consecutive[channel]
+			if consecutive[channel] > result.Channels[channel].LongestRun {
+				result.Channels[channel].LongestRun = consecutive[channel]
 			}
 
 			result.Events++
 
-			result.ClippedSamples += consecutive[ch]
-			if consecutive[ch] > result.LongestRun {
-				result.LongestRun = consecutive[ch]
+			result.ClippedSamples += consecutive[channel]
+			if consecutive[channel] > result.LongestRun {
+				result.LongestRun = consecutive[channel]
 			}
 		}
 	}

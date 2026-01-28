@@ -33,52 +33,52 @@ func (s *biquadState) process(b *biquad, in float64) float64 {
 
 // K-weighting filter coefficients for common sample rates
 // Pre-filter (high shelf) + RLB weighting (high pass).
-func getKWeightingFilters(sampleRate int) (pre, rlb biquad) {
+func getKWeightingFilters(rate int) (pre, rlb biquad) {
 	// Coefficients from ITU-R BS.1770-4
 	// These are computed from the analog prototype transfer functions
-	fs := float64(sampleRate)
+	sampleRate := float64(rate)
 
 	// Pre-filter (high shelf)
 	// Models the acoustic effects of the head
-	f0 := 1681.974450955533
+	centerFreq := 1681.974450955533
 	G := 3.999843853973347
-	Q := 0.7071752369554196
+	qualityFactor := 0.7071752369554196
 
-	K := math.Tan(math.Pi * f0 / fs)
-	Vh := math.Pow(10, G/20)
-	Vb := math.Pow(Vh, 0.4996667741545416)
+	bilinearK := math.Tan(math.Pi * centerFreq / sampleRate)
+	headGainV := math.Pow(10, G/20)
+	Vb := math.Pow(headGainV, 0.4996667741545416)
 
-	a0 := 1 + K/Q + K*K
-	pre.b0 = (Vh + Vb*K/Q + K*K) / a0
-	pre.b1 = 2 * (K*K - Vh) / a0
-	pre.b2 = (Vh - Vb*K/Q + K*K) / a0
-	pre.a1 = 2 * (K*K - 1) / a0
-	pre.a2 = (1 - K/Q + K*K) / a0
+	gain := 1 + bilinearK/qualityFactor + bilinearK*bilinearK
+	pre.b0 = (headGainV + Vb*bilinearK/qualityFactor + bilinearK*bilinearK) / gain
+	pre.b1 = 2 * (bilinearK*bilinearK - headGainV) / gain
+	pre.b2 = (headGainV - Vb*bilinearK/qualityFactor + bilinearK*bilinearK) / gain
+	pre.a1 = 2 * (bilinearK*bilinearK - 1) / gain
+	pre.a2 = (1 - bilinearK/qualityFactor + bilinearK*bilinearK) / gain
 
 	// RLB weighting (high pass)
-	f0 = 38.13547087602444
-	Q = 0.5003270373238773
+	centerFreq = 38.13547087602444
+	qualityFactor = 0.5003270373238773
 
-	K = math.Tan(math.Pi * f0 / fs)
+	bilinearK = math.Tan(math.Pi * centerFreq / sampleRate)
 
-	a0 = 1 + K/Q + K*K
-	rlb.b0 = 1 / a0
-	rlb.b1 = -2 / a0
-	rlb.b2 = 1 / a0
-	rlb.a1 = 2 * (K*K - 1) / a0
-	rlb.a2 = (1 - K/Q + K*K) / a0
+	gain = 1 + bilinearK/qualityFactor + bilinearK*bilinearK
+	rlb.b0 = 1 / gain
+	rlb.b1 = -2 / gain
+	rlb.b2 = 1 / gain
+	rlb.a1 = 2 * (bilinearK*bilinearK - 1) / gain
+	rlb.a2 = (1 - bilinearK/qualityFactor + bilinearK*bilinearK) / gain
 
 	return pre, rlb
 }
 
 // Channel weights for surround (we only handle stereo for now).
-func getChannelWeight(ch, numChannels int) float64 {
+func getChannelWeight(channel, numChannels int) float64 {
 	if numChannels <= 2 {
 		return 1.0
 	}
 	// For surround: L, R, C = 1.0; Ls, Rs = 1.41 (~+1.5dB)
 	// LFE is excluded
-	if ch >= 3 && ch <= 4 && numChannels > 4 {
+	if channel >= 3 && channel <= 4 && numChannels > 4 {
 		return 1.41
 	}
 
@@ -162,15 +162,15 @@ func newMeter(sampleRate, numChannels int) *meter {
 func (m *meter) processFrame() {
 	var framePower, framePeak float64
 
-	for ch, sample := range m.frameSamples {
+	for channel, sample := range m.frameSamples {
 		if abs := math.Abs(sample); abs > framePeak {
 			framePeak = abs
 		}
 
-		filtered := m.preState[ch].process(&m.pre, sample)
-		filtered = m.rlbState[ch].process(&m.rlb, filtered)
+		filtered := m.preState[channel].process(&m.pre, sample)
+		filtered = m.rlbState[channel].process(&m.rlb, filtered)
 
-		weight := getChannelWeight(ch, m.numChannels)
+		weight := getChannelWeight(channel, m.numChannels)
 		framePower += weight * filtered * filtered
 	}
 
@@ -261,9 +261,9 @@ func (m *meter) finalize() *types.LoudnessResult {
 	}
 }
 
-func Analyze(r io.Reader, format types.PCMFormat) (*types.LoudnessResult, error) {
-	bytesPerSample := int(format.BitDepth / 8)
-	numChannels := int(format.Channels)
+func Analyze(reader io.Reader, format types.PCMFormat) (*types.LoudnessResult, error) {
+	bytesPerSample := int(format.BitDepth / 8) //nolint:gosec // bit depth and channel count are small constants
+	numChannels := int(format.Channels)       //nolint:gosec // bit depth and channel count are small constants
 	frameSize := bytesPerSample * numChannels
 	sampleRate := format.SampleRate
 
@@ -278,12 +278,13 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.LoudnessResult, error)
 		maxVal = 8388608.0
 	case types.Depth32:
 		maxVal = 2147483648.0
+	default:
 	}
 
-	m := newMeter(sampleRate, numChannels)
+	measurement := newMeter(sampleRate, numChannels)
 
 	for {
-		n, err := r.Read(buf)
+		n, err := reader.Read(buf)
 		if n > 0 {
 			completeFrames := (n / frameSize) * frameSize
 			data := buf[:completeFrames]
@@ -292,34 +293,35 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.LoudnessResult, error)
 			case types.Depth16:
 				for i := 0; i < len(data); i += frameSize {
 					for ch := range numChannels {
-						m.frameSamples[ch] = float64(int16(binary.LittleEndian.Uint16(data[i+ch*2:]))) / maxVal
+						measurement.frameSamples[ch] = float64(int16(binary.LittleEndian.Uint16(data[i+ch*2:]))) / maxVal //nolint:gosec // two's complement conversion for signed PCM samples
 					}
 
-					m.processFrame()
+					measurement.processFrame()
 				}
 			case types.Depth24:
 				for i := 0; i < len(data); i += frameSize {
-					for ch := range numChannels {
-						offset := i + ch*3
+					for channel := range numChannels {
+						offset := i + channel*3
 
 						raw := int32(data[offset]) | int32(data[offset+1])<<8 | int32(data[offset+2])<<16
 						if raw&0x800000 != 0 {
 							raw |= ^0xFFFFFF
 						}
 
-						m.frameSamples[ch] = float64(raw) / maxVal
+						measurement.frameSamples[channel] = float64(raw) / maxVal
 					}
 
-					m.processFrame()
+					measurement.processFrame()
 				}
 			case types.Depth32:
 				for i := 0; i < len(data); i += frameSize {
 					for ch := range numChannels {
-						m.frameSamples[ch] = float64(int32(binary.LittleEndian.Uint32(data[i+ch*4:]))) / maxVal
+						measurement.frameSamples[ch] = float64(int32(binary.LittleEndian.Uint32(data[i+ch*4:]))) / maxVal //nolint:gosec // two's complement conversion for signed PCM samples
 					}
 
-					m.processFrame()
+					measurement.processFrame()
 				}
+			default:
 			}
 		}
 
@@ -332,7 +334,7 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.LoudnessResult, error)
 		}
 	}
 
-	return m.finalize(), nil
+	return measurement.finalize(), nil
 }
 
 func calculateIntegratedLoudness(powers []float64) float64 {
@@ -473,13 +475,13 @@ func calculateDR(blocks []drBlock) (score int, value, peakDb, rmsDb float64) {
 	}
 
 	// DR = 20 * log10(peak / rms)
-	dr := 20 * math.Log10(peak/rms)
+	dynamicRange := 20 * math.Log10(peak/rms)
 
 	// Clamp to DR1-DR20
-	score = min(max(int(math.Round(dr)), 1), 20)
+	score = min(max(int(math.Round(dynamicRange)), 1), 20)
 
 	peakDb = 20 * math.Log10(peak)
 	rmsDb = 20 * math.Log10(rms)
 
-	return score, dr, peakDb, rmsDb
+	return score, dynamicRange, peakDb, rmsDb
 }

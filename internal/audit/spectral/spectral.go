@@ -56,7 +56,7 @@ var upsampleNyquists = []struct {
 	{96000, 48000},
 }
 
-func Analyze(r io.Reader, format types.PCMFormat, opts Options) (*types.SpectralResult, error) {
+func Analyze(reader io.Reader, format types.PCMFormat, opts Options) (*types.SpectralResult, error) {
 	if opts.FFTSize == 0 {
 		opts.FFTSize = 8192
 	}
@@ -68,7 +68,7 @@ func Analyze(r io.Reader, format types.PCMFormat, opts Options) (*types.Spectral
 	fftSize := opts.FFTSize
 
 	// Phase 1: Read entire stream into mono-mixed samples.
-	samples, err := readMonoMixed(r, format)
+	samples, err := readMonoMixed(reader, format)
 	if err != nil {
 		return nil, err
 	}
@@ -156,9 +156,9 @@ func Analyze(r io.Reader, format types.PCMFormat, opts Options) (*types.Spectral
 }
 
 // readMonoMixed reads the entire PCM stream and returns mono-mixed samples.
-func readMonoMixed(r io.Reader, format types.PCMFormat) ([]float64, error) {
-	bytesPerSample := int(format.BitDepth / 8)
-	numChannels := int(format.Channels)
+func readMonoMixed(reader io.Reader, format types.PCMFormat) ([]float64, error) {
+	bytesPerSample := int(format.BitDepth / 8) //nolint:gosec // bit depth and channel count are small constants
+	numChannels := int(format.Channels)       //nolint:gosec // bit depth and channel count are small constants
 	frameSize := bytesPerSample * numChannels
 
 	var maxVal float64
@@ -170,6 +170,7 @@ func readMonoMixed(r io.Reader, format types.PCMFormat) ([]float64, error) {
 		maxVal = 8388608.0
 	case types.Depth32:
 		maxVal = 2147483648.0
+	default:
 	}
 
 	readBuf := make([]byte, frameSize*4096)
@@ -177,7 +178,7 @@ func readMonoMixed(r io.Reader, format types.PCMFormat) ([]float64, error) {
 	var samples []float64
 
 	for {
-		n, err := r.Read(readBuf)
+		n, err := reader.Read(readBuf)
 		if n > 0 {
 			completeFrames := (n / frameSize) * frameSize
 			data := readBuf[:completeFrames]
@@ -187,7 +188,7 @@ func readMonoMixed(r io.Reader, format types.PCMFormat) ([]float64, error) {
 				for i := 0; i < len(data); i += frameSize {
 					var sum float64
 					for ch := range numChannels {
-						sum += float64(int16(binary.LittleEndian.Uint16(data[i+ch*2:]))) / maxVal
+						sum += float64(int16(binary.LittleEndian.Uint16(data[i+ch*2:]))) / maxVal //nolint:gosec // two's complement conversion for signed PCM samples
 					}
 
 					samples = append(samples, sum/float64(numChannels))
@@ -213,11 +214,12 @@ func readMonoMixed(r io.Reader, format types.PCMFormat) ([]float64, error) {
 				for i := 0; i < len(data); i += frameSize {
 					var sum float64
 					for ch := range numChannels {
-						sum += float64(int32(binary.LittleEndian.Uint32(data[i+ch*4:]))) / maxVal
+						sum += float64(int32(binary.LittleEndian.Uint32(data[i+ch*4:]))) / maxVal //nolint:gosec // two's complement conversion for signed PCM samples
 					}
 
 					samples = append(samples, sum/float64(numChannels))
 				}
+			default:
 			}
 		}
 
@@ -278,16 +280,16 @@ func makeHannWindow(size int) []float64 {
 }
 
 func toDb(magnitude []float64) []float64 {
-	db := make([]float64, len(magnitude))
+	decibels := make([]float64, len(magnitude))
 	for i, m := range magnitude {
 		if m > 0 {
-			db[i] = 20 * math.Log10(m)
+			decibels[i] = 20 * math.Log10(m)
 		} else {
-			db[i] = -120
+			decibels[i] = -120
 		}
 	}
 
-	return db
+	return decibels
 }
 
 func bandAverage(magDb []float64, startHz, endHz, binHz float64) float64 {
@@ -337,17 +339,17 @@ func detectUpsampling(result *types.SpectralResult, magDb []float64, binHz, nyqu
 		bestRate      int
 	)
 
-	for _, sr := range upsampleNyquists {
-		if sr.nyquist >= nyquist {
+	for _, sampleRate := range upsampleNyquists {
+		if sampleRate.nyquist >= nyquist {
 			continue
 		}
 
-		drop, sharpness := detectBrickWall(magDb, sr.nyquist, binHz)
+		drop, sharpness := detectBrickWall(magDb, sampleRate.nyquist, binHz)
 
 		if drop > 20 && sharpness > bestSharpness {
 			bestSharpness = sharpness
-			bestCutoff = sr.nyquist
-			bestRate = sr.rate
+			bestCutoff = sampleRate.nyquist
+			bestRate = sampleRate.rate
 		}
 	}
 
@@ -368,21 +370,21 @@ func detectTranscode(result *types.SpectralResult, magDb []float64, binHz, nyqui
 		bestCodec     string
 	)
 
-	for _, tc := range transcodeCutoffs {
-		if tc.freq >= nyquist {
+	for _, transcodeInfo := range transcodeCutoffs {
+		if transcodeInfo.freq >= nyquist {
 			continue
 		}
 		// Don't flag upsample cutoff as transcode
-		if result.IsUpsampled && math.Abs(tc.freq-result.UpsampleCutoff) < 2000 {
+		if result.IsUpsampled && math.Abs(transcodeInfo.freq-result.UpsampleCutoff) < 2000 {
 			continue
 		}
 
-		drop, sharpness := detectBrickWall(magDb, tc.freq, binHz)
+		drop, sharpness := detectBrickWall(magDb, transcodeInfo.freq, binHz)
 
 		if drop > 15 && sharpness > bestSharpness {
 			bestSharpness = sharpness
-			bestCutoff = tc.freq
-			bestCodec = tc.codec
+			bestCutoff = transcodeInfo.freq
+			bestCodec = transcodeInfo.codec
 		}
 	}
 

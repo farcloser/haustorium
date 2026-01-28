@@ -29,21 +29,21 @@ func init() {
 	for phase := range oversample {
 		for tap := range tapsPerPhase {
 			// Filter index in the full filter
-			n := tap*oversample + phase
+			count := tap*oversample + phase
 			center := float64(totalTaps-1) / 2.0
 
 			// Sinc function
-			x := float64(n) - center
+			sample := float64(count) - center
 
 			var sinc float64
-			if math.Abs(x) < 1e-10 {
+			if math.Abs(sample) < 1e-10 {
 				sinc = 1.0
 			} else {
-				sinc = math.Sin(math.Pi*x/float64(oversample)) / (math.Pi * x / float64(oversample))
+				sinc = math.Sin(math.Pi*sample/float64(oversample)) / (math.Pi * sample / float64(oversample))
 			}
 
 			// Kaiser window
-			alpha := (float64(n) - center) / center
+			alpha := (float64(count) - center) / center
 			if math.Abs(alpha) <= 1.0 {
 				window := bessel0(beta*math.Sqrt(1-alpha*alpha)) / bessel0(beta)
 				polyphaseCoeffs[phase][tap] = sinc * window * float64(oversample)
@@ -82,8 +82,8 @@ func bessel0(x float64) float64 {
 }
 
 func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) {
-	bytesPerSample := int(format.BitDepth / 8)
-	numChannels := int(format.Channels)
+	bytesPerSample := int(format.BitDepth / 8) //nolint:gosec // bit depth and channel count are small constants
+	numChannels := int(format.Channels)       //nolint:gosec // bit depth and channel count are small constants
 	frameSize := bytesPerSample * numChannels
 
 	buf := make([]byte, frameSize*4096)
@@ -97,12 +97,13 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 		maxVal = 8388608.0
 	case types.Depth32:
 		maxVal = 2147483648.0
+	default:
 	}
 
 	// History buffers for each channel (for polyphase filter)
 	history := make([][]float64, numChannels)
-	for ch := range history {
-		history[ch] = make([]float64, tapsPerPhase)
+	for channel := range history {
+		history[channel] = make([]float64, tapsPerPhase)
 	}
 
 	var (
@@ -122,8 +123,8 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 			switch format.BitDepth {
 			case types.Depth16:
 				for i := 0; i < len(data); i += frameSize {
-					for ch := range numChannels {
-						sample := float64(int16(binary.LittleEndian.Uint16(data[i+ch*2:]))) / maxVal
+					for channel := range numChannels {
+						sample := float64(int16(binary.LittleEndian.Uint16(data[i+channel*2:]))) / maxVal //nolint:gosec // two's complement conversion for signed PCM samples
 
 						// Track sample peak
 						absSample := math.Abs(sample)
@@ -132,14 +133,14 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 						}
 
 						// Shift history and add new sample
-						copy(history[ch][0:], history[ch][1:])
-						history[ch][tapsPerPhase-1] = sample
+						copy(history[channel][0:], history[channel][1:])
+						history[channel][tapsPerPhase-1] = sample
 
 						// Compute interpolated samples at each phase
 						for phase := range oversample {
 							var interp float64
 							for tap := range tapsPerPhase {
-								interp += history[ch][tap] * polyphaseCoeffs[phase][tap]
+								interp += history[channel][tap] * polyphaseCoeffs[phase][tap]
 							}
 
 							absInterp := math.Abs(interp)
@@ -163,8 +164,8 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 				}
 			case types.Depth24:
 				for i := 0; i < len(data); i += frameSize {
-					for ch := range numChannels {
-						offset := i + ch*3
+					for channel := range numChannels {
+						offset := i + channel*3
 
 						raw := int32(data[offset]) | int32(data[offset+1])<<8 | int32(data[offset+2])<<16
 						if raw&0x800000 != 0 {
@@ -178,13 +179,13 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 							samplePeak = absSample
 						}
 
-						copy(history[ch][0:], history[ch][1:])
-						history[ch][tapsPerPhase-1] = sample
+						copy(history[channel][0:], history[channel][1:])
+						history[channel][tapsPerPhase-1] = sample
 
 						for phase := range oversample {
 							var interp float64
 							for tap := range tapsPerPhase {
-								interp += history[ch][tap] * polyphaseCoeffs[phase][tap]
+								interp += history[channel][tap] * polyphaseCoeffs[phase][tap]
 							}
 
 							absInterp := math.Abs(interp)
@@ -207,21 +208,21 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 				}
 			case types.Depth32:
 				for i := 0; i < len(data); i += frameSize {
-					for ch := range numChannels {
-						sample := float64(int32(binary.LittleEndian.Uint32(data[i+ch*4:]))) / maxVal
+					for channel := range numChannels {
+						sample := float64(int32(binary.LittleEndian.Uint32(data[i+channel*4:]))) / maxVal //nolint:gosec // two's complement conversion for signed PCM samples
 
 						absSample := math.Abs(sample)
 						if absSample > samplePeak {
 							samplePeak = absSample
 						}
 
-						copy(history[ch][0:], history[ch][1:])
-						history[ch][tapsPerPhase-1] = sample
+						copy(history[channel][0:], history[channel][1:])
+						history[channel][tapsPerPhase-1] = sample
 
 						for phase := range oversample {
 							var interp float64
 							for tap := range tapsPerPhase {
-								interp += history[ch][tap] * polyphaseCoeffs[phase][tap]
+								interp += history[channel][tap] * polyphaseCoeffs[phase][tap]
 							}
 
 							absInterp := math.Abs(interp)

@@ -12,7 +12,7 @@ import (
 
 // AnalyzeV2 adds temporal variance analysis to reduce false positives for hum
 // and noise floor detection on legitimately dark or bass-heavy recordings.
-func AnalyzeV2(r io.Reader, format types.PCMFormat, opts Options) (*types.SpectralResult, error) {
+func AnalyzeV2(reader io.Reader, format types.PCMFormat, opts Options) (*types.SpectralResult, error) {
 	if opts.FFTSize == 0 {
 		opts.FFTSize = 8192
 	}
@@ -24,7 +24,7 @@ func AnalyzeV2(r io.Reader, format types.PCMFormat, opts Options) (*types.Spectr
 	fftSize := opts.FFTSize
 
 	// Phase 1: Read entire stream into mono-mixed samples.
-	samples, err := readMonoMixed(r, format)
+	samples, err := readMonoMixed(reader, format)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +59,7 @@ func AnalyzeV2(r io.Reader, format types.PCMFormat, opts Options) (*types.Spectr
 	windowMagnitudes := make([][]float64, len(positions))
 	windowRMS := make([]float64, len(positions)) // overall RMS per window for quiet detection
 
-	for wi, pos := range positions {
+	for windowIdx, pos := range positions {
 		var rmsSum float64
 
 		for i := range fftSize {
@@ -67,15 +67,15 @@ func AnalyzeV2(r io.Reader, format types.PCMFormat, opts Options) (*types.Spectr
 			rmsSum += samples[pos+i] * samples[pos+i]
 		}
 
-		windowRMS[wi] = math.Sqrt(rmsSum / float64(fftSize))
+		windowRMS[windowIdx] = math.Sqrt(rmsSum / float64(fftSize))
 
 		coeffs := fft.Coefficients(nil, fftIn)
 
-		windowMagnitudes[wi] = make([]float64, binCount)
+		windowMagnitudes[windowIdx] = make([]float64, binCount)
 
 		for i, c := range coeffs {
 			mag := math.Sqrt(real(c)*real(c) + imag(c)*imag(c))
-			windowMagnitudes[wi][i] = mag
+			windowMagnitudes[windowIdx][i] = mag
 			magnitudeSum[i] += mag
 		}
 	}
@@ -158,7 +158,7 @@ func detectHumFrequencyV2(windowMagnitudes [][]float64, fundamental, binHz float
 	// For each window, compute the max spike across harmonics.
 	windowSpikes := make([]float64, len(windowMagnitudes))
 
-	for wi, mag := range windowMagnitudes {
+	for windowIdx, mag := range windowMagnitudes {
 		magDb := toDb(mag)
 
 		var maxSpike float64
@@ -194,7 +194,7 @@ func detectHumFrequencyV2(windowMagnitudes [][]float64, fundamental, binHz float
 			}
 		}
 
-		windowSpikes[wi] = maxSpike
+		windowSpikes[windowIdx] = maxSpike
 	}
 
 	// Compute mean and standard deviation of spikes across windows.
@@ -324,6 +324,7 @@ func detectNoiseFloorV2(
 
 	if useQuietWindows {
 		var flatnessSum float64
+
 		for _, wi := range quietIndices {
 			mag := windowMagnitudes[wi]
 			flatnessSum += spectralFlatness(mag[hfStart:min(hfEnd, len(mag))])
@@ -333,6 +334,7 @@ func detectNoiseFloorV2(
 	} else {
 		// Full-track average magnitude for flatness.
 		avgMag := make([]float64, binCount)
+
 		for _, wm := range windowMagnitudes {
 			for i := hfStart; i < hfEnd && i < len(wm); i++ {
 				avgMag[i] += wm[i]
@@ -360,8 +362,8 @@ func detectNoiseFloorV2(
 }
 
 // findQuietestWindows returns indices of the N quietest windows by RMS.
-func findQuietestWindows(windowRMS []float64, n int) []int {
-	if n >= len(windowRMS) {
+func findQuietestWindows(windowRMS []float64, count int) []int {
+	if count >= len(windowRMS) {
 		indices := make([]int, len(windowRMS))
 		for i := range indices {
 			indices[i] = i
@@ -381,22 +383,22 @@ func findQuietestWindows(windowRMS []float64, n int) []int {
 		indexed[i] = indexedRMS{i, rms}
 	}
 
-	// Partial sort: find n smallest.
-	// For simplicity, full sort then take first n.
-	for i := range n {
-		minIdx := i
-		for j := i + 1; j < len(indexed); j++ {
+	// Partial sort: find count smallest.
+	// For simplicity, full sort then take first count.
+	for idx := range count {
+		minIdx := idx
+		for j := idx + 1; j < len(indexed); j++ {
 			if indexed[j].rms < indexed[minIdx].rms {
 				minIdx = j
 			}
 		}
 
-		indexed[i], indexed[minIdx] = indexed[minIdx], indexed[i]
+		indexed[idx], indexed[minIdx] = indexed[minIdx], indexed[idx]
 	}
 
-	result := make([]int, n)
-	for i := range n {
-		result[i] = indexed[i].index
+	result := make([]int, count)
+	for idx := range count {
+		result[idx] = indexed[idx].index
 	}
 
 	return result

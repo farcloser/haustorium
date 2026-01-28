@@ -11,7 +11,7 @@ import (
 	"github.com/farcloser/haustorium/internal/types"
 )
 
-func Analyze(r io.Reader, format types.PCMFormat) (*types.StereoResult, error) {
+func Analyze(reader io.Reader, format types.PCMFormat) (*types.StereoResult, error) {
 	if format.Channels != 2 {
 		return &types.StereoResult{
 			Correlation:    0,
@@ -26,7 +26,7 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.StereoResult, error) {
 		}, nil
 	}
 
-	bytesPerSample := int(format.BitDepth / 8)
+	bytesPerSample := int(format.BitDepth / 8) //nolint:gosec // bit depth is a small constant
 	frameSize := bytesPerSample * 2
 	buf := make([]byte, frameSize*4096)
 
@@ -45,10 +45,11 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.StereoResult, error) {
 		maxVal = 8388608.0
 	case types.Depth32:
 		maxVal = 2147483648.0
+	default:
 	}
 
 	for {
-		n, err := r.Read(buf)
+		n, err := reader.Read(buf)
 		if n > 0 {
 			completeFrames := (n / frameSize) * frameSize
 			data := buf[:completeFrames]
@@ -56,8 +57,8 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.StereoResult, error) {
 			switch format.BitDepth {
 			case types.Depth16:
 				for i := 0; i < len(data); i += 4 {
-					left := float64(int16(binary.LittleEndian.Uint16(data[i:]))) / maxVal
-					right := float64(int16(binary.LittleEndian.Uint16(data[i+2:]))) / maxVal
+					left := float64(int16(binary.LittleEndian.Uint16(data[i:]))) / maxVal   //nolint:gosec // two's complement conversion for signed PCM samples
+					right := float64(int16(binary.LittleEndian.Uint16(data[i+2:]))) / maxVal //nolint:gosec // two's complement conversion for signed PCM samples
 
 					sumL += left
 					sumR += right
@@ -74,13 +75,13 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.StereoResult, error) {
 					frames++
 				}
 			case types.Depth24:
-				for i := 0; i < len(data); i += 6 {
-					leftRaw := int32(data[i]) | int32(data[i+1])<<8 | int32(data[i+2])<<16
+				for idx := 0; idx < len(data); idx += 6 {
+					leftRaw := int32(data[idx]) | int32(data[idx+1])<<8 | int32(data[idx+2])<<16
 					if leftRaw&0x800000 != 0 {
 						leftRaw |= ^0xFFFFFF
 					}
 
-					rightRaw := int32(data[i+3]) | int32(data[i+4])<<8 | int32(data[i+5])<<16
+					rightRaw := int32(data[idx+3]) | int32(data[idx+4])<<8 | int32(data[idx+5])<<16
 					if rightRaw&0x800000 != 0 {
 						rightRaw |= ^0xFFFFFF
 					}
@@ -104,8 +105,8 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.StereoResult, error) {
 				}
 			case types.Depth32:
 				for i := 0; i < len(data); i += 8 {
-					left := float64(int32(binary.LittleEndian.Uint32(data[i:]))) / maxVal
-					right := float64(int32(binary.LittleEndian.Uint32(data[i+4:]))) / maxVal
+					left := float64(int32(binary.LittleEndian.Uint32(data[i:]))) / maxVal   //nolint:gosec // two's complement conversion for signed PCM samples
+					right := float64(int32(binary.LittleEndian.Uint32(data[i+4:]))) / maxVal //nolint:gosec // two's complement conversion for signed PCM samples
 
 					sumL += left
 					sumR += right
@@ -121,6 +122,7 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.StereoResult, error) {
 					sumStereoSq += (left*left + right*right) / 2
 					frames++
 				}
+			default:
 			}
 		}
 
@@ -147,11 +149,11 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.StereoResult, error) {
 		}, nil
 	}
 
-	n := float64(frames)
+	count := float64(frames)
 
 	// Pearson correlation
-	numerator := n*sumLR - sumL*sumR
-	denominator := math.Sqrt((n*sumLL - sumL*sumL) * (n*sumRR - sumR*sumR))
+	numerator := count*sumLR - sumL*sumR
+	denominator := math.Sqrt((count*sumLL - sumL*sumL) * (count*sumRR - sumR*sumR))
 
 	var correlation float64
 	if denominator > 0 {
@@ -159,11 +161,11 @@ func Analyze(r io.Reader, format types.PCMFormat) (*types.StereoResult, error) {
 	}
 
 	// RMS values
-	diffRms := math.Sqrt(sumDiffSq / n)
-	monoRms := math.Sqrt(sumMonoSq / n)
-	stereoRms := math.Sqrt(sumStereoSq / n)
-	leftRms := math.Sqrt(sumLL / n)
-	rightRms := math.Sqrt(sumRR / n)
+	diffRms := math.Sqrt(sumDiffSq / count)
+	monoRms := math.Sqrt(sumMonoSq / count)
+	stereoRms := math.Sqrt(sumStereoSq / count)
+	leftRms := math.Sqrt(sumLL / count)
+	rightRms := math.Sqrt(sumRR / count)
 
 	diffDb := 20 * math.Log10(diffRms)
 	monoDb := 20 * math.Log10(monoRms)

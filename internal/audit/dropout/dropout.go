@@ -61,7 +61,7 @@ func newScanner(opts Options, sampleRate float64, numChannels int) *scanner {
 	dcWindowSize := max(int(sampleRate*opts.DCWindowMs/1000), 1)
 	minZeroSamples := max(int(sampleRate*opts.ZeroRunMinMs/1000), 1)
 
-	s := &scanner{
+	scan := &scanner{
 		opts:           opts,
 		sampleRate:     sampleRate,
 		dcWindowSize:   dcWindowSize,
@@ -84,29 +84,29 @@ func newScanner(opts Options, sampleRate float64, numChannels int) *scanner {
 		sqFilled:      make([]int, numChannels),
 	}
 
-	for i := range s.zeroStart {
-		s.zeroStart[i] = -1
+	for i := range scan.zeroStart {
+		scan.zeroStart[i] = -1
 	}
 
 	for ch := range numChannels {
-		s.dcBuf[ch] = make([]float64, dcWindowSize)
-		s.sqBuf[ch] = make([]float64, dcWindowSize)
+		scan.dcBuf[ch] = make([]float64, dcWindowSize)
+		scan.sqBuf[ch] = make([]float64, dcWindowSize)
 	}
 
-	return s
+	return scan
 }
 
 // processSample runs all detection logic for a single sample on a single channel.
-func (s *scanner) processSample(ch int, sample float64) {
+func (s *scanner) processSample(channel int, sample float64) {
 	if !s.firstSample {
 		// Delta detection.
-		delta := math.Abs(sample - s.prevSample[ch])
+		delta := math.Abs(sample - s.prevSample[channel])
 		if delta > s.opts.DeltaThreshold &&
-			isDeltaDropout(s.prevSample[ch], sample, s.opts.DeltaNearZero) {
+			isDeltaDropout(s.prevSample[channel], sample, s.opts.DeltaNearZero) {
 			s.result.Events = append(s.result.Events, types.Event{
 				Frame:    s.totalFrames,
 				TimeSec:  float64(s.totalFrames) / s.sampleRate,
-				Channel:  ch,
+				Channel:  channel,
 				Type:     types.EventDelta,
 				Severity: delta,
 			})
@@ -115,18 +115,18 @@ func (s *scanner) processSample(ch int, sample float64) {
 
 		// Zero run detection.
 		if sample == 0 {
-			if s.zeroStart[ch] < 0 {
-				s.zeroStart[ch] = int64(s.totalFrames)
-				s.zeroStartRms[ch] = rmsDb(s.sqSum[ch], s.sqFilled[ch])
+			if s.zeroStart[channel] < 0 {
+				s.zeroStart[channel] = int64(s.totalFrames) //nolint:gosec // frame count fits in int64
+				s.zeroStartRms[channel] = rmsDb(s.sqSum[channel], s.sqFilled[channel])
 			}
-		} else if s.zeroStart[ch] >= 0 {
-			runLength := int64(s.totalFrames) - s.zeroStart[ch]
-			if runLength >= int64(s.minZeroSamples) && s.zeroStartRms[ch] >= s.opts.ZeroRunQuietDb {
+		} else if s.zeroStart[channel] >= 0 {
+			runLength := int64(s.totalFrames) - s.zeroStart[channel] //nolint:gosec // frame count fits in int64
+			if runLength >= int64(s.minZeroSamples) && s.zeroStartRms[channel] >= s.opts.ZeroRunQuietDb {
 				durationMs := float64(runLength) / s.sampleRate * 1000
 				s.result.Events = append(s.result.Events, types.Event{
-					Frame:      uint64(s.zeroStart[ch]),
-					TimeSec:    float64(s.zeroStart[ch]) / s.sampleRate,
-					Channel:    ch,
+					Frame:      uint64(s.zeroStart[channel]), //nolint:gosec // value is non-negative by construction
+					TimeSec:    float64(s.zeroStart[channel]) / s.sampleRate,
+					Channel:    channel,
 					Type:       types.EventZeroRun,
 					Severity:   float64(runLength) / s.sampleRate,
 					DurationMs: durationMs,
@@ -134,29 +134,29 @@ func (s *scanner) processSample(ch int, sample float64) {
 				s.result.ZeroRunCount++
 			}
 
-			s.zeroStart[ch] = -1
+			s.zeroStart[channel] = -1
 		}
 	}
 
 	// DC offset tracking.
-	old := s.dcBuf[ch][s.dcPos[ch]]
-	s.dcBuf[ch][s.dcPos[ch]] = sample
-	s.dcSum[ch] = s.dcSum[ch] - old + sample
+	old := s.dcBuf[channel][s.dcPos[channel]]
+	s.dcBuf[channel][s.dcPos[channel]] = sample
+	s.dcSum[channel] = s.dcSum[channel] - old + sample
 
-	s.dcPos[ch] = (s.dcPos[ch] + 1) % s.dcWindowSize
-	if s.dcFilled[ch] < s.dcWindowSize {
-		s.dcFilled[ch]++
+	s.dcPos[channel] = (s.dcPos[channel] + 1) % s.dcWindowSize
+	if s.dcFilled[channel] < s.dcWindowSize {
+		s.dcFilled[channel]++
 	}
 
-	if s.dcFilled[ch] == s.dcWindowSize {
-		currentDC := s.dcSum[ch] / float64(s.dcWindowSize)
-		if s.dcInitialized[ch] {
-			dcDelta := math.Abs(currentDC - s.prevDC[ch])
+	if s.dcFilled[channel] == s.dcWindowSize {
+		currentDC := s.dcSum[channel] / float64(s.dcWindowSize)
+		if s.dcInitialized[channel] {
+			dcDelta := math.Abs(currentDC - s.prevDC[channel])
 			if dcDelta > s.opts.DCJumpThreshold {
 				s.result.Events = append(s.result.Events, types.Event{
 					Frame:    s.totalFrames,
 					TimeSec:  float64(s.totalFrames) / s.sampleRate,
-					Channel:  ch,
+					Channel:  channel,
 					Type:     types.EventDCJump,
 					Severity: dcDelta,
 				})
@@ -164,22 +164,22 @@ func (s *scanner) processSample(ch int, sample float64) {
 			}
 		}
 
-		s.prevDC[ch] = currentDC
-		s.dcInitialized[ch] = true
+		s.prevDC[channel] = currentDC
+		s.dcInitialized[channel] = true
 	}
 
 	// RMS tracking (sum of squares).
-	oldSq := s.sqBuf[ch][s.sqPos[ch]]
+	oldSq := s.sqBuf[channel][s.sqPos[channel]]
 	sq := sample * sample
-	s.sqBuf[ch][s.sqPos[ch]] = sq
-	s.sqSum[ch] = s.sqSum[ch] - oldSq + sq
+	s.sqBuf[channel][s.sqPos[channel]] = sq
+	s.sqSum[channel] = s.sqSum[channel] - oldSq + sq
 
-	s.sqPos[ch] = (s.sqPos[ch] + 1) % s.dcWindowSize
-	if s.sqFilled[ch] < s.dcWindowSize {
-		s.sqFilled[ch]++
+	s.sqPos[channel] = (s.sqPos[channel] + 1) % s.dcWindowSize
+	if s.sqFilled[channel] < s.dcWindowSize {
+		s.sqFilled[channel]++
 	}
 
-	s.prevSample[ch] = sample
+	s.prevSample[channel] = sample
 }
 
 // endFrame advances the frame counter and clears the first-sample flag.
@@ -190,15 +190,15 @@ func (s *scanner) endFrame() {
 
 // flush emits any trailing zero runs still open at EOF.
 func (s *scanner) flush() {
-	for ch := range s.zeroStart {
-		if s.zeroStart[ch] >= 0 {
-			runLength := int64(s.totalFrames) - s.zeroStart[ch]
-			if runLength >= int64(s.minZeroSamples) && s.zeroStartRms[ch] >= s.opts.ZeroRunQuietDb {
+	for channel := range s.zeroStart {
+		if s.zeroStart[channel] >= 0 {
+			runLength := int64(s.totalFrames) - s.zeroStart[channel] //nolint:gosec // frame count fits in int64
+			if runLength >= int64(s.minZeroSamples) && s.zeroStartRms[channel] >= s.opts.ZeroRunQuietDb {
 				durationMs := float64(runLength) / s.sampleRate * 1000
 				s.result.Events = append(s.result.Events, types.Event{
-					Frame:      uint64(s.zeroStart[ch]),
-					TimeSec:    float64(s.zeroStart[ch]) / s.sampleRate,
-					Channel:    ch,
+					Frame:      uint64(s.zeroStart[channel]), //nolint:gosec // value is non-negative by construction
+					TimeSec:    float64(s.zeroStart[channel]) / s.sampleRate,
+					Channel:    channel,
 					Type:       types.EventZeroRun,
 					Severity:   float64(runLength) / s.sampleRate,
 					DurationMs: durationMs,
@@ -281,8 +281,8 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 		opts.DCJumpThreshold = 0.1
 	}
 
-	bytesPerSample := int(format.BitDepth / 8)
-	numChannels := int(format.Channels)
+	bytesPerSample := int(format.BitDepth / 8) //nolint:gosec // bit depth and channel count are small constants
+	numChannels := int(format.Channels)       //nolint:gosec // bit depth and channel count are small constants
 	frameSize := bytesPerSample * numChannels
 	sampleRate := float64(format.SampleRate)
 
@@ -297,9 +297,10 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 		maxVal = 8388608.0
 	case types.Depth32:
 		maxVal = 2147483648.0
+	default:
 	}
 
-	s := newScanner(opts, sampleRate, numChannels)
+	scan := newScanner(opts, sampleRate, numChannels)
 
 	for {
 		n, err := r.Read(buf)
@@ -311,16 +312,16 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 			case types.Depth16:
 				for i := 0; i < len(data); i += frameSize {
 					for ch := range numChannels {
-						sample := float64(int16(binary.LittleEndian.Uint16(data[i+ch*2:]))) / maxVal
-						s.processSample(ch, sample)
+						sample := float64(int16(binary.LittleEndian.Uint16(data[i+ch*2:]))) / maxVal //nolint:gosec // two's complement conversion for signed PCM samples
+						scan.processSample(ch, sample)
 					}
 
-					s.endFrame()
+					scan.endFrame()
 				}
 			case types.Depth24:
 				for i := 0; i < len(data); i += frameSize {
-					for ch := range numChannels {
-						offset := i + ch*3
+					for channel := range numChannels {
+						offset := i + channel*3
 
 						raw := int32(data[offset]) | int32(data[offset+1])<<8 | int32(data[offset+2])<<16
 						if raw&0x800000 != 0 {
@@ -328,20 +329,21 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 						}
 
 						sample := float64(raw) / maxVal
-						s.processSample(ch, sample)
+						scan.processSample(channel, sample)
 					}
 
-					s.endFrame()
+					scan.endFrame()
 				}
 			case types.Depth32:
 				for i := 0; i < len(data); i += frameSize {
 					for ch := range numChannels {
-						sample := float64(int32(binary.LittleEndian.Uint32(data[i+ch*4:]))) / maxVal
-						s.processSample(ch, sample)
+						sample := float64(int32(binary.LittleEndian.Uint32(data[i+ch*4:]))) / maxVal //nolint:gosec // two's complement conversion for signed PCM samples
+						scan.processSample(ch, sample)
 					}
 
-					s.endFrame()
+					scan.endFrame()
 				}
+			default:
 			}
 		}
 
@@ -354,5 +356,5 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.DropoutRe
 		}
 	}
 
-	return s.finalize(), nil
+	return scan.finalize(), nil
 }
