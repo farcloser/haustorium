@@ -203,13 +203,15 @@ test-unit-race:
 	lint-commits lint-go lint-go-all lint-headers lint-licenses lint-licenses-all lint-mod lint-shell lint-yaml \
 	fix-go fix-go-all fix-mod \
 	test-unit test-unit-race test-unit-bench \
-	build install clean
+	build build-debug install clean
 
 # Default target
 .DEFAULT_GOAL := help
 
-# Binary name
+# Binary names
 BINARY_PATH := ./bin/$(NAME)
+REPORT_NAME := hau-report
+REPORT_BINARY_PATH := ./bin/$(REPORT_NAME)
 
 # Go linker flags
 # -s strips symbol table, -w strips DWARF
@@ -217,7 +219,12 @@ LDFLAGS_VERSION := -X $(ORG)/$(NAME)/version.version=$(VERSION) \
     -X $(ORG)/$(NAME)/version.commit=$(COMMIT) \
     -X $(ORG)/$(NAME)/version.name=$(NAME) \
     -X $(ORG)/$(NAME)/version.date=$(DATE)
+LDFLAGS_VERSION_REPORT := -X $(ORG)/$(NAME)/version.version=$(VERSION) \
+    -X $(ORG)/$(NAME)/version.commit=$(COMMIT) \
+    -X $(ORG)/$(NAME)/version.name=$(REPORT_NAME) \
+    -X $(ORG)/$(NAME)/version.date=$(DATE)
 LDFLAGS_RELEASE := -s -w $(LDFLAGS_VERSION)
+LDFLAGS_RELEASE_REPORT := -s -w $(LDFLAGS_VERSION_REPORT)
 LDFLAGS_DEBUG := $(LDFLAGS_VERSION)
 
 # Go compiler flags
@@ -233,24 +240,33 @@ GOBUILD_DEBUG := CGO_ENABLED=0 $(GOCMD) build -buildmode=pie -gcflags='$(GCFLAGS
 
 GOINSTALL := $(GOCMD) install
 
-build: ## Build the binary (PIE, release)
+build: ## Build all binaries (PIE, release)
 	@echo "Building $(NAME)..."
 	@mkdir -p bin
 	$(GOBUILD) -o $(BINARY_PATH) ./cmd/$(NAME)
 	@echo "Binary built: $(BINARY_PATH)"
+	@echo "Building $(REPORT_NAME)..."
+	CGO_ENABLED=0 $(GOCMD) build -trimpath -buildmode=pie -ldflags '$(LDFLAGS_RELEASE_REPORT)' -o $(REPORT_BINARY_PATH) ./cmd/$(REPORT_NAME)
+	@echo "Binary built: $(REPORT_BINARY_PATH)"
 
-build-debug: ## Build the binary (PIE, debug)
+build-debug: ## Build all binaries (PIE, debug)
 	@echo "Building $(NAME) (debug)..."
 	@mkdir -p bin
 	$(GOBUILD_DEBUG) -o $(BINARY_PATH) ./cmd/$(NAME)
 	@echo "Binary built: $(BINARY_PATH)"
+	@echo "Building $(REPORT_NAME) (debug)..."
+	CGO_ENABLED=0 $(GOCMD) build -buildmode=pie -gcflags='$(GCFLAGS_DEBUG)' -ldflags '$(LDFLAGS_VERSION_REPORT)' -o $(REPORT_BINARY_PATH) ./cmd/$(REPORT_NAME)
+	@echo "Binary built: $(REPORT_BINARY_PATH)"
 
 install: ## Install to GOPATH/bin
 	@echo "Installing $(NAME)..."
 	$(GOINSTALL) ./cmd/$(NAME)
 	@echo "Installed to $$(go env GOPATH)/bin/$(NAME)"
+	@echo "Installing $(REPORT_NAME)..."
+	$(GOINSTALL) ./cmd/$(REPORT_NAME)
+	@echo "Installed to $$(go env GOPATH)/bin/$(REPORT_NAME)"
 
 clean: ## Clean build artifacts
 	@echo "Cleaning..."
-	@rm -rf bin/$(NAME)
+	@rm -rf bin/$(NAME) bin/$(REPORT_NAME)
 	@echo "Clean complete"

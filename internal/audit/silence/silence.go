@@ -1,3 +1,4 @@
+//nolint:staticcheck // too dumb
 package silence
 
 import (
@@ -8,6 +9,7 @@ import (
 
 	"github.com/farcloser/primordium/fault"
 
+	"github.com/farcloser/haustorium/internal/audit/shared"
 	"github.com/farcloser/haustorium/internal/types"
 )
 
@@ -38,9 +40,9 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.SilenceRe
 		opts.WindowMs = 50
 	}
 
-	bytesPerSample := int(format.BitDepth / 8)              //nolint:gosec // bit depth and channel count are small constants
-	frameSize := bytesPerSample * int(format.Channels)     //nolint:gosec // bit depth and channel count are small constants
-	numChannels := int(format.Channels)                    //nolint:gosec // bit depth and channel count are small constants
+	bytesPerSample := int(format.BitDepth / 8)         //nolint:gosec // bit depth and channel count are small constants
+	frameSize := bytesPerSample * int(format.Channels) //nolint:gosec // bit depth and channel count are small constants
+	numChannels := int(format.Channels)                //nolint:gosec // bit depth and channel count are small constants
 
 	// Window size in frames
 	windowFrames := max(format.SampleRate*opts.WindowMs/1000, 1)
@@ -53,11 +55,11 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.SilenceRe
 
 	switch format.BitDepth {
 	case types.Depth16:
-		maxVal = 32768.0
+		maxVal = shared.MaxValue16
 	case types.Depth24:
-		maxVal = 8388608.0
+		maxVal = shared.MaxValue24
 	case types.Depth32:
-		maxVal = 2147483648.0
+		maxVal = shared.MaxValue32
 	default:
 	}
 

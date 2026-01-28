@@ -1,6 +1,6 @@
 # Generating reports
 
-## Why?
+## Why contribute?
 
 I am testing against my local collection.
 This is very biased by how I have ripped my CDs and vinyls, the kind of music I am
@@ -20,7 +20,7 @@ If you are interested, you can follow these simple steps to generate a report.
 ```bash
 # Install golang, ffmpeg, and jq on your machine
 # If you are on macos
-brew install go ffmpeg jq
+brew install 
 
 # Install Haustorium
 go install github.com/farcloser/haustorium/cmd/haustorium@latest
@@ -46,7 +46,7 @@ I will try to address these proactively below:
 
 Absolutely not.
 The tool is read-only and never writes anything to the filesystem (except the report).
-
+Wait 
 However, you may of course elect to run the tool on a **copy** of (some of) your files
 to alleviate any concerns.
 

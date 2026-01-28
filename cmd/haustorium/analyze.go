@@ -1,4 +1,4 @@
-//nolint:wrapcheck
+//nolint:staticcheck,wrapcheck // too dumb
 package main
 
 import (

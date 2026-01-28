@@ -8,6 +8,7 @@ import (
 
 	"github.com/farcloser/primordium/fault"
 
+	"github.com/farcloser/haustorium/internal/audit/shared"
 	"github.com/farcloser/haustorium/internal/types"
 )
 
@@ -269,11 +270,11 @@ func DetectV2(reader io.Reader, format types.PCMFormat, opts Options) (*types.Dr
 
 	switch format.BitDepth {
 	case types.Depth16:
-		maxVal = 32768.0
+		maxVal = shared.MaxValue16
 	case types.Depth24:
-		maxVal = 8388608.0
+		maxVal = shared.MaxValue24
 	case types.Depth32:
-		maxVal = 2147483648.0
+		maxVal = shared.MaxValue32
 	default:
 	}
 

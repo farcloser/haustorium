@@ -1,3 +1,4 @@
+//nolint:staticcheck // too dumb
 package spectral
 
 import (
@@ -10,6 +11,7 @@ import (
 
 	"github.com/farcloser/primordium/fault"
 
+	"github.com/farcloser/haustorium/internal/audit/shared"
 	"github.com/farcloser/haustorium/internal/types"
 )
 
@@ -158,18 +160,18 @@ func Analyze(reader io.Reader, format types.PCMFormat, opts Options) (*types.Spe
 // readMonoMixed reads the entire PCM stream and returns mono-mixed samples.
 func readMonoMixed(reader io.Reader, format types.PCMFormat) ([]float64, error) {
 	bytesPerSample := int(format.BitDepth / 8) //nolint:gosec // bit depth and channel count are small constants
-	numChannels := int(format.Channels)       //nolint:gosec // bit depth and channel count are small constants
+	numChannels := int(format.Channels)        //nolint:gosec // bit depth and channel count are small constants
 	frameSize := bytesPerSample * numChannels
 
 	var maxVal float64
 
 	switch format.BitDepth {
 	case types.Depth16:
-		maxVal = 32768.0
+		maxVal = shared.MaxValue16
 	case types.Depth24:
-		maxVal = 8388608.0
+		maxVal = shared.MaxValue24
 	case types.Depth32:
-		maxVal = 2147483648.0
+		maxVal = shared.MaxValue32
 	default:
 	}
 
