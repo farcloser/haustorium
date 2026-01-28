@@ -157,10 +157,13 @@ func SpectralToMap(result *types.SpectralResult) map[string]any {
 		meta["upsample_sharpness"] = result.UpsampleSharpness
 	}
 
-	if result.IsTranscode {
+	if result.IsTranscode || result.TranscodeConfidence > 0 {
 		meta["transcode_cutoff"] = result.TranscodeCutoff
 		meta["transcode_sharpness"] = result.TranscodeSharpness
 		meta["likely_codec"] = result.LikelyCodec
+		meta["transcode_confidence"] = result.TranscodeConfidence
+		meta["cutoff_consistency_hz"] = result.CutoffConsistency
+		meta["has_ultrasonic_content"] = result.HasUltrasonicContent
 	}
 
 	if len(result.BandEnergy) > 0 {

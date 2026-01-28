@@ -368,10 +368,13 @@ type SpectralResult struct {
 	UpsampleSharpness float64 // dB/octave at cutoff
 
 	// Lossy transcode detection
-	IsTranscode        bool
-	TranscodeCutoff    float64 // Hz; 0 if not detected
-	TranscodeSharpness float64
-	LikelyCodec        string // "MP3 128", "MP3 320", "AAC 128", etc.
+	IsTranscode          bool
+	TranscodeCutoff      float64 // Hz; 0 if not detected
+	TranscodeSharpness   float64
+	LikelyCodec          string  // "MP3 128", "MP3 320", "AAC 128", etc.
+	TranscodeConfidence  float64 // 0.0-1.0; reduced when cutoff looks like mastering LPF
+	CutoffConsistency    float64 // stddev of cutoff frequency across windows; low = mastering filter
+	HasUltrasonicContent bool    // true if any content exists above the detected cutoff
 
 	// Hum detection
 	Has50HzHum bool

@@ -727,8 +727,9 @@ func interpretResults(result *Result, opts Options) {
 		detected := result.Spectral.IsTranscode
 
 		var (
-			severity Severity
-			summary  string
+			severity   Severity
+			summary    string
+			confidence float64
 		)
 
 		if detected {
@@ -738,9 +739,16 @@ func interpretResults(result *Result, opts Options) {
 				result.Spectral.LikelyCodec,
 				result.Spectral.TranscodeCutoff,
 			)
+			// Use the V2 confidence if available, otherwise fall back to sharpness-based.
+			if result.Spectral.TranscodeConfidence > 0 {
+				confidence = result.Spectral.TranscodeConfidence
+			} else {
+				confidence = boolToConfidence(result.Spectral.TranscodeSharpness > opts.TranscodeSharpnessDb)
+			}
 		} else {
 			severity = SeverityNone
 			summary = "No lossy transcode detected"
+			confidence = 1.0 // high confidence it's NOT a transcode
 		}
 
 		result.HasLossyTranscode = detected
@@ -749,7 +757,7 @@ func interpretResults(result *Result, opts Options) {
 			Detected:   detected,
 			Severity:   severity,
 			Summary:    summary,
-			Confidence: boolToConfidence(result.Spectral.TranscodeSharpness > opts.TranscodeSharpnessDb),
+			Confidence: confidence,
 		})
 	}
 

@@ -106,8 +106,8 @@ func AnalyzeV2(reader io.Reader, format types.PCMFormat, opts Options) (*types.S
 		detectUpsampling(result, magDb, binHz, nyquist, refLevel)
 	}
 
-	// === Lossy transcode detection ===
-	detectTranscode(result, magDb, binHz, nyquist, refLevel)
+	// === Lossy transcode detection V2 (with consistency analysis) ===
+	detectTranscodeV2(result, windowMagnitudes, magDb, binHz, nyquist, refLevel)
 
 	// === Hum detection V2 (with variance) ===
 	detectHumV2(result, windowMagnitudes, binHz, refLevel)
@@ -443,4 +443,206 @@ func spectralFlatness(magnitudes []float64) float64 {
 	geometricMean := math.Exp(logSum / float64(count))
 
 	return geometricMean / arithmeticMean
+}
+
+// detectTranscodeV2 detects lossy transcodes with enhanced analysis to reduce false positives.
+//
+// Key improvements over V1:
+//   - Measures cutoff consistency across windows (mastering LPFs are rock-solid, codecs may vary)
+//   - Checks for ultrasonic content above the cutoff (mastering may leave some, codecs don't)
+//   - Adjusts confidence based on these factors
+//
+// A 20-21 kHz cutoff on 44.1kHz content is ambiguous: it could be a legitimate mastering
+// low-pass filter (common practice) or a high-bitrate lossy codec (Opus 128, AAC 256).
+// This function attempts to distinguish them.
+func detectTranscodeV2(
+	result *types.SpectralResult,
+	windowMagnitudes [][]float64,
+	magDb []float64,
+	binHz, nyquist, refLevel float64,
+) {
+	// First, run the basic detection to find candidate cutoffs.
+	detectTranscode(result, magDb, binHz, nyquist, refLevel)
+
+	// If no transcode detected, nothing more to do.
+	if !result.IsTranscode {
+		result.TranscodeConfidence = 0
+		return
+	}
+
+	// Start with high confidence, reduce based on evidence.
+	confidence := 0.95
+	cutoffFreq := result.TranscodeCutoff
+
+	// === Check 1: Cutoff consistency across windows ===
+	// A mastering LPF creates identical cutoffs in every window.
+	// A codec's psychoacoustic model may cause slight variations.
+	cutoffStdDev := measureCutoffConsistency(windowMagnitudes, cutoffFreq, binHz)
+	result.CutoffConsistency = cutoffStdDev
+
+	// Very low stddev (< 50 Hz) suggests mastering filter, not codec.
+	// Reduce confidence proportionally.
+	if cutoffStdDev < 50 {
+		// Linear reduction: 0 Hz stddev -> -0.20 confidence, 50 Hz -> 0
+		reduction := 0.20 * (1 - cutoffStdDev/50)
+		confidence -= reduction
+	}
+
+	// === Check 2: Ultrasonic content above cutoff ===
+	// Legitimate mastering often leaves faint ultrasonic content (harmonics, dither).
+	// Lossy codecs completely eliminate everything above their cutoff.
+	// This is the strongest indicator: codecs create a hard wall with NOTHING above.
+	hasUltrasonic := checkUltrasonicContent(magDb, cutoffFreq, binHz, nyquist, refLevel)
+	result.HasUltrasonicContent = hasUltrasonic
+
+	if hasUltrasonic {
+		// Content above cutoff is definitive evidence against a codec.
+		// Codecs cannot leave ultrasonic content - they completely eliminate it.
+		// This is the strongest signal we have.
+		confidence -= 0.40
+	}
+
+	// === Check 3: Cutoff frequency penalty for high frequencies ===
+	// Cutoffs at 20+ kHz are more likely to be mastering decisions.
+	// Lower cutoffs (15-18 kHz) are more clearly codec-related.
+	if cutoffFreq >= 20000 {
+		// 20 kHz: -0.10, 20.5 kHz: -0.15, 21 kHz: -0.20
+		reduction := 0.10 + (cutoffFreq-20000)/5000*0.10
+		confidence -= min(reduction, 0.20)
+	}
+
+	// === Check 4: Sharpness analysis ===
+	// Mastering filters: typically 24-48 dB/octave (gentle to moderate)
+	// Codec brick walls: often 60+ dB/octave (very steep)
+	// But some mastering filters can also be steep, so this is a weak signal.
+	sharpness := result.TranscodeSharpness
+	if sharpness < 40 {
+		// Moderate slope is more consistent with mastering filter.
+		confidence -= 0.10
+	}
+
+	// Clamp confidence to valid range.
+	confidence = max(0.0, min(1.0, confidence))
+
+	// If confidence drops below threshold, un-flag as transcode.
+	const minConfidenceThreshold = 0.50
+
+	if confidence < minConfidenceThreshold {
+		result.IsTranscode = false
+		result.LikelyCodec = ""
+	}
+
+	result.TranscodeConfidence = confidence
+}
+
+// measureCutoffConsistency measures how consistent the cutoff frequency is across windows.
+// Returns the standard deviation of detected cutoff frequencies.
+// Low stddev = consistent (mastering filter), high stddev = variable (possibly codec).
+func measureCutoffConsistency(windowMagnitudes [][]float64, targetCutoff, binHz float64) float64 {
+	if len(windowMagnitudes) < 3 {
+		return 0 // not enough windows to measure consistency
+	}
+
+	// For each window, find the frequency where energy drops most sharply
+	// in the vicinity of the target cutoff.
+	searchStart := targetCutoff - 2000 // search ±2 kHz around target
+	searchEnd := targetCutoff + 2000
+	startBin := max(1, int(searchStart/binHz))
+
+	var cutoffs []float64
+
+	for _, mag := range windowMagnitudes {
+		magDb := toDb(mag)
+		endBin := min(len(magDb)-2, int(searchEnd/binHz))
+
+		if startBin >= endBin {
+			continue
+		}
+
+		// Find the bin with the steepest drop.
+		var (
+			maxDrop    float64
+			maxDropBin int
+		)
+
+		for bin := startBin; bin < endBin; bin++ {
+			// Measure drop from bin to bin+2 (smoothed gradient).
+			drop := magDb[bin] - magDb[bin+2]
+			if drop > maxDrop {
+				maxDrop = drop
+				maxDropBin = bin
+			}
+		}
+
+		if maxDrop > 5 { // only count if there's a meaningful drop
+			cutoffs = append(cutoffs, float64(maxDropBin)*binHz)
+		}
+	}
+
+	if len(cutoffs) < 3 {
+		return 0
+	}
+
+	// Calculate standard deviation.
+	var sum float64
+	for _, c := range cutoffs {
+		sum += c
+	}
+
+	mean := sum / float64(len(cutoffs))
+
+	var varianceSum float64
+	for _, c := range cutoffs {
+		d := c - mean
+		varianceSum += d * d
+	}
+
+	return math.Sqrt(varianceSum / float64(len(cutoffs)))
+}
+
+// checkUltrasonicContent checks if there's any meaningful content above the cutoff.
+// Legitimate mastering may leave faint harmonics, dither, or room noise above 20 kHz.
+// Lossy codecs create a hard wall with nothing above.
+func checkUltrasonicContent(magDb []float64, cutoffFreq, binHz, nyquist, refLevel float64) bool {
+	// Check energy in the band from cutoff+500 Hz to nyquist-500 Hz.
+	checkStart := cutoffFreq + 500
+	checkEnd := nyquist - 500
+
+	if checkEnd <= checkStart {
+		return false // no room to check
+	}
+
+	startBin := int(checkStart / binHz)
+	endBin := int(checkEnd / binHz)
+
+	if startBin >= len(magDb) || endBin <= startBin {
+		return false
+	}
+
+	endBin = min(endBin, len(magDb)-1)
+
+	// Calculate average energy above cutoff.
+	var sum float64
+
+	count := 0
+
+	for i := startBin; i <= endBin; i++ {
+		sum += magDb[i]
+		count++
+	}
+
+	if count == 0 {
+		return false
+	}
+
+	avgAboveCutoff := sum / float64(count)
+
+	// Compare to reference level.
+	// If ultrasonic energy is within 50 dB of reference, there's content.
+	// (Pure silence/noise floor would be 60-80 dB below reference.)
+	relativeLevel := avgAboveCutoff - refLevel
+
+	// If there's meaningful content (not just noise floor), return true.
+	// Threshold: -50 dB relative to reference indicates some content.
+	return relativeLevel > -50
 }
