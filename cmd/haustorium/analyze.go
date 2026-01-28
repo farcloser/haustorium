@@ -71,7 +71,11 @@ func analyzeCommand() *cli.Command {
 				Usage:   "Output format: console, json, markdown",
 				Value:   "console",
 			},
-
+			&cli.BoolFlag{
+				Name:    "debug",
+				Aliases: []string{"D"},
+				Usage:   "Include all raw analyzer data in output",
+			},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			if cmd.NArg() != 1 {
@@ -113,7 +117,7 @@ func analyzeCommand() *cli.Command {
 				return fmt.Errorf("analysis failed: %w", err)
 			}
 
-			return outputResult(inputPath, result, cmd.String("format"))
+			return outputResult(inputPath, result, cmd.String("format"), cmd.Bool("debug"))
 		},
 	}
 }
