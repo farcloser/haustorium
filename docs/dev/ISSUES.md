@@ -136,3 +136,145 @@ Lossy codecs add quantization noise with characteristic spectral shapes:
 ### Additional Consideration: Bootleg CDs
 
 Note that a "CD rip" only proves audio came from a CD, not that the CD was legitimate. Counterfeit/bootleg CDs are often burned from lossy sources and would correctly show transcode artifacts. The detection is working correctly in those cases - if there's no ultrasonic content, it likely IS a transcode regardless of the physical medium.
+
+---
+
+## Inter-Sample Peak (ISP) Detection Severity Weighting
+
+**Status:** Partially Resolved (2026-01-28)
+**Severity:** Moderate
+**Discovered:** 2026-01-28
+
+### Problem
+
+The original ISP detection counted all inter-sample peaks equally and reported only:
+- Total ISP count
+- Maximum overshoot (dBTP)
+
+This was misleading because **not all ISPs are equally problematic**. The severity depends on:
+1. **Frequency** - ISPs near Fs/4 (11 kHz at 44.1kHz) are worst-case
+2. **Magnitude** - +0.3dB vs +2dB is a huge difference in audible distortion
+3. **Density** - Clustered ISPs during loud passages create sustained distortion
+4. **Musical context** - ISPs during quiet passages are more audible (no masking)
+
+### Technical Background
+
+Reference: [Benchmark Media - Intersample Overs in CD Recordings](https://benchmarkmedia.com/blogs/application_notes/intersample-overs-in-cd-recordings)
+
+#### Frequency Dependence
+
+The worst-case ISP occurs at **Fs/4** (quarter of sample rate):
+
+| Sample Rate | Worst-Case Frequency | Audibility |
+|-------------|---------------------|------------|
+| 44.1 kHz | **11.025 kHz** | Fully audible, most problematic |
+| 48 kHz | 12 kHz | Fully audible |
+| 88.2 kHz | 22.05 kHz | Barely audible |
+| 96 kHz | 24 kHz | Ultrasonic, less problematic |
+| 192 kHz | 48 kHz | Ultrasonic, least problematic |
+
+**Why Fs/4?** At this frequency, samples can fall exactly at zero crossings, completely missing the peaks. Maximum theoretical overshoot is **+3.01 dB** (√2 factor).
+
+#### Why High-Frequency ISPs Are Less Severe
+
+1. **Many DACs filter ultrasonic content** - reconstruction filters attenuate >20kHz
+2. **Amplifiers and speakers have limited bandwidth** - may not reproduce the clipped waveform
+3. **Human hearing rolls off** - less sensitive above 15-16kHz
+
+However, ISP clipping still creates **intermodulation distortion (IMD)** that can fold back into audible frequencies, so ultrasonic ISPs are not completely benign.
+
+#### Density Matters More Than Count
+
+| Pattern | Severity | Audibility |
+|---------|----------|------------|
+| Single isolated ISP | Low | Masked by transient, sounds like part of attack |
+| Sparse random ISPs | Low-Medium | Occasional micro-clicks, often masked |
+| Dense sustained ISPs | **High** | Continuous distortion, audible "crunch" or harshness |
+| ISPs during quiet passages | **High** | No masking, clearly audible artifacts |
+
+**Example from Benchmark's analysis:**
+- Steely Dan "Gaslighting Abbie": 1,129 ISPs over 5+ minutes (~3.7/sec), max +0.8dB
+- This is actually **mild** - many loudness-war masters have 10,000+ ISPs with +2dB overshoots
+
+### Solution Implemented
+
+#### New Fields in `TruePeakResult`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `ISPDensityPeak` | float64 | Worst-case ISPs per second (1-second window) |
+| `ISPDensityAvg` | float64 | Average ISPs per second across entire file |
+| `ISPsAboveHalfdB` | uint64 | Count of ISPs with >0.5dB overshoot |
+| `ISPsAbove1dB` | uint64 | Count of ISPs with >1.0dB overshoot |
+| `ISPsAbove2dB` | uint64 | Count of ISPs with >2.0dB overshoot |
+| `WorstDensitySec` | float64 | Timestamp (seconds) of peak density window |
+
+#### Density Analysis
+
+ISPs are now tracked per 1-second window:
+- **Peak density:** Maximum ISPs in any single second (identifies worst "hot spots")
+- **Average density:** ISPs/second across the file (overall severity indicator)
+- **Location:** Timestamp of the worst density window
+
+#### Magnitude Distribution
+
+ISPs are counted by severity threshold:
+- `>0.5 dB`: Mild overshoots (may clip sensitive DACs)
+- `>1.0 dB`: Moderate overshoots (will clip most DACs)
+- `>2.0 dB`: Severe overshoots (significant distortion)
+
+### Remaining Proposed Improvements
+
+#### Frequency-Weighted Severity (Medium priority)
+
+Weight ISPs by proximity to Fs/4:
+
+```
+severity_weight = 1.0 - abs(isp_frequency - Fs/4) / (Fs/4)
+```
+
+ISPs at 11kHz (44.1kHz source) get weight 1.0, ultrasonic ISPs get lower weights.
+
+**Implementation:** Requires FFT analysis around ISP locations to estimate frequency content causing the ISP.
+
+**Effort:** ~1-2 days
+
+#### Musical Context Awareness (Low priority)
+
+Correlate ISPs with signal level:
+- ISPs during loud passages: less severe (masked)
+- ISPs during quiet passages: more severe (audible)
+- Report "unmasked ISP count" for ISPs occurring below -20dBFS
+
+**Effort:** ~1-2 days
+
+### New Fields for `TruePeakResult`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `ISPDensityPeak` | float64 | Worst-case ISPs per second (1-second window) |
+| `ISPDensityAvg` | float64 | Average ISPs per second during active sections |
+| `WeightedSeverity` | float64 | Combined score accounting for frequency, magnitude, density |
+| `ISPsAbove1dB` | uint64 | Count of ISPs with >1dB overshoot |
+| `WorstFrequencyHz` | float64 | Frequency of the most severe ISP |
+
+### Current vs. Improved Severity Reporting
+
+**Current output:**
+```
+inter-sample-peaks: Pervasive ISPs: 60816 events, max overshoot 1.14 dB
+```
+
+**Improved output (proposed):**
+```
+inter-sample-peaks: 60816 ISPs (severity: high)
+  - Peak density: 847/sec at 2:34
+  - 12,403 ISPs >1dB (20%), worst at 11.2kHz
+  - Weighted severity: 0.78 (dense mid-frequency ISPs)
+```
+
+### References
+
+- [Benchmark Media: Intersample Overs in CD Recordings](https://benchmarkmedia.com/blogs/application_notes/intersample-overs-in-cd-recordings)
+- AES Convention Paper: "Sample-Peak and True-Peak Measurement" (TC Electronic)
+- EBU R128: Loudness normalisation and permitted maximum level of audio signals

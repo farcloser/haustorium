@@ -84,7 +84,7 @@ func bessel0(x float64) float64 {
 
 func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) {
 	bytesPerSample := int(format.BitDepth / 8) //nolint:gosec // bit depth and channel count are small constants
-	numChannels := int(format.Channels)       //nolint:gosec // bit depth and channel count are small constants
+	numChannels := int(format.Channels)        //nolint:gosec // bit depth and channel count are small constants
 	frameSize := bytesPerSample * numChannels
 
 	buf := make([]byte, frameSize*4096)
@@ -113,7 +113,18 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 		ispCount    uint64
 		ispMax      float64
 		totalFrames uint64
+
+		// Enhanced ISP tracking
+		ispsAboveHalfdB uint64
+		ispsAbove1dB    uint64
+		ispsAbove2dB    uint64
 	)
+
+	// Density tracking: count ISPs per 1-second window
+	samplesPerSecond := format.SampleRate
+	windowISPCounts := []uint64{0}   // ISP count for each 1-second window
+	currentWindowISPs := uint64(0)   // ISPs in current window
+	currentWindowStart := uint64(0)  // frame where current window started
 
 	for {
 		n, err := r.Read(buf)
@@ -152,16 +163,35 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 							// Count ISPs (peaks exceeding 0 dBFS)
 							if absInterp > 1.0 {
 								ispCount++
+								currentWindowISPs++
 
 								overshoot := 20 * math.Log10(absInterp)
 								if overshoot > ispMax {
 									ispMax = overshoot
+								}
+
+								// Track by magnitude threshold
+								if overshoot > 0.5 {
+									ispsAboveHalfdB++
+								}
+								if overshoot > 1.0 {
+									ispsAbove1dB++
+								}
+								if overshoot > 2.0 {
+									ispsAbove2dB++
 								}
 							}
 						}
 					}
 
 					totalFrames++
+
+					// Check if we've completed a 1-second window
+					if totalFrames-currentWindowStart >= uint64(samplesPerSecond) {
+						windowISPCounts = append(windowISPCounts, currentWindowISPs)
+						currentWindowISPs = 0
+						currentWindowStart = totalFrames
+					}
 				}
 			case types.Depth24:
 				for i := 0; i < len(data); i += frameSize {
@@ -196,16 +226,33 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 
 							if absInterp > 1.0 {
 								ispCount++
+								currentWindowISPs++
 
 								overshoot := 20 * math.Log10(absInterp)
 								if overshoot > ispMax {
 									ispMax = overshoot
+								}
+
+								if overshoot > 0.5 {
+									ispsAboveHalfdB++
+								}
+								if overshoot > 1.0 {
+									ispsAbove1dB++
+								}
+								if overshoot > 2.0 {
+									ispsAbove2dB++
 								}
 							}
 						}
 					}
 
 					totalFrames++
+
+					if totalFrames-currentWindowStart >= uint64(samplesPerSecond) {
+						windowISPCounts = append(windowISPCounts, currentWindowISPs)
+						currentWindowISPs = 0
+						currentWindowStart = totalFrames
+					}
 				}
 			case types.Depth32:
 				for i := 0; i < len(data); i += frameSize {
@@ -233,16 +280,33 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 
 							if absInterp > 1.0 {
 								ispCount++
+								currentWindowISPs++
 
 								overshoot := 20 * math.Log10(absInterp)
 								if overshoot > ispMax {
 									ispMax = overshoot
+								}
+
+								if overshoot > 0.5 {
+									ispsAboveHalfdB++
+								}
+								if overshoot > 1.0 {
+									ispsAbove1dB++
+								}
+								if overshoot > 2.0 {
+									ispsAbove2dB++
 								}
 							}
 						}
 					}
 
 					totalFrames++
+
+					if totalFrames-currentWindowStart >= uint64(samplesPerSecond) {
+						windowISPCounts = append(windowISPCounts, currentWindowISPs)
+						currentWindowISPs = 0
+						currentWindowStart = totalFrames
+					}
 				}
 			default:
 			}
@@ -267,11 +331,43 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 		truePeakDb = 20 * math.Log10(truePeak)
 	}
 
+	// Add any remaining ISPs from the last partial window
+	if currentWindowISPs > 0 {
+		windowISPCounts = append(windowISPCounts, currentWindowISPs)
+	}
+
+	// Calculate density metrics
+	var ispDensityPeak float64
+	var worstDensitySec float64
+
+	for i, count := range windowISPCounts {
+		density := float64(count) // ISPs per second (window is 1 second)
+		if density > ispDensityPeak {
+			ispDensityPeak = density
+			worstDensitySec = float64(i) // window index = second
+		}
+	}
+
+	var ispDensityAvg float64
+	if totalFrames > 0 {
+		durationSec := float64(totalFrames) / float64(samplesPerSecond)
+		if durationSec > 0 {
+			ispDensityAvg = float64(ispCount) / durationSec
+		}
+	}
+
 	return &types.TruePeakResult{
 		TruePeakDb:   truePeakDb,
 		SamplePeakDb: samplePeakDb,
 		ISPCount:     ispCount,
 		ISPMaxDb:     ispMax,
 		Frames:       totalFrames,
+
+		ISPDensityPeak:  ispDensityPeak,
+		ISPDensityAvg:   ispDensityAvg,
+		ISPsAboveHalfdB: ispsAboveHalfdB,
+		ISPsAbove1dB:    ispsAbove1dB,
+		ISPsAbove2dB:    ispsAbove2dB,
+		WorstDensitySec: worstDensitySec,
 	}, nil
 }

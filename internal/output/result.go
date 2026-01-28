@@ -87,11 +87,17 @@ func ResultToMap(result *haustorium.Result) map[string]any {
 
 	if reader := result.TruePeak; reader != nil {
 		meta["true_peak"] = map[string]any{
-			"true_peak_db":   reader.TruePeakDb,
-			"sample_peak_db": reader.SamplePeakDb,
-			"isp_count":      reader.ISPCount,
-			"isp_max_db":     reader.ISPMaxDb,
-			"frames":         reader.Frames,
+			"true_peak_db":       reader.TruePeakDb,
+			"sample_peak_db":     reader.SamplePeakDb,
+			"isp_count":          reader.ISPCount,
+			"isp_max_db":         reader.ISPMaxDb,
+			"isp_density_peak":   reader.ISPDensityPeak,
+			"isp_density_avg":    reader.ISPDensityAvg,
+			"isps_above_half_db": reader.ISPsAboveHalfdB,
+			"isps_above_1db":     reader.ISPsAbove1dB,
+			"isps_above_2db":     reader.ISPsAbove2dB,
+			"worst_density_sec":  reader.WorstDensitySec,
+			"frames":             reader.Frames,
 		}
 	}
 
