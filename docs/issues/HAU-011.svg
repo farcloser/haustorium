@@ -1,0 +1,123 @@
+<svg viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
+    <style>
+        .bg { fill: #1a1a2e; }
+        .grid { stroke: #2a2a4e; stroke-width: 1; }
+        .axis { stroke: #4a4a6e; stroke-width: 2; }
+        .label { fill: #ffffff; font-family: sans-serif; font-size: 14px; }
+        .title { fill: #ffffff; font-family: sans-serif; font-size: 18px; font-weight: bold; }
+        .sublabel { fill: #888888; font-family: monospace; font-size: 11px; }
+        .axis-label { fill: #666666; font-family: monospace; font-size: 9px; }
+        .meter-bg { fill: #2a2a4e; rx: 3; }
+        .meter-quiet { fill: #44ff88; }
+        .meter-loud { fill: #ff8844; }
+        .lufs-value { fill: #ffffff; font-family: monospace; font-size: 16px; font-weight: bold; text-anchor: middle; }
+        .lufs-unit { fill: #888888; font-family: monospace; font-size: 11px; text-anchor: middle; }
+        .ref-line { stroke: #44ff88; stroke-width: 1; stroke-dasharray: 6,3; opacity: 0.5; }
+        .ref-label { fill: #44ff88; font-family: monospace; font-size: 9px; opacity: 0.7; }
+        .lra-bracket { stroke: #ffffff; stroke-width: 1; fill: none; opacity: 0.5; }
+        .lra-label { fill: #ffffff; font-family: monospace; font-size: 9px; opacity: 0.7; }
+    </style>
+
+    <rect class="bg" width="800" height="400"/>
+    <text class="title" x="400" y="30" text-anchor="middle">Loudness: LUFS Measurement</text>
+
+    <!-- Left panel: Streaming-Friendly -->
+    <g transform="translate(50, 60)">
+        <text class="label" x="150" y="0" text-anchor="middle">Streaming-Friendly Master</text>
+
+        <!-- Meter scale: -60 LUFS (bottom) to 0 LUFS (top) -->
+        <!-- Scale: 0 LUFS = y=20, -60 LUFS = y=200. 1 LUFS = 3px -->
+
+        <!-- Meter background -->
+        <rect class="meter-bg" x="50" y="20" width="60" height="180" rx="3"/>
+
+        <!-- Meter fill: -14 LUFS = y = 20 + 14*3 = 62, height = 200-62 = 138 -->
+        <rect class="meter-quiet" x="53" y="62" width="54" height="135" rx="2"/>
+
+        <!-- Scale labels -->
+        <text class="axis-label" x="45" y="24" text-anchor="end">0</text>
+        <text class="axis-label" x="45" y="54" text-anchor="end">-10</text>
+        <text class="axis-label" x="45" y="84" text-anchor="end">-20</text>
+        <text class="axis-label" x="45" y="114" text-anchor="end">-30</text>
+        <text class="axis-label" x="45" y="144" text-anchor="end">-40</text>
+        <text class="axis-label" x="45" y="174" text-anchor="end">-50</text>
+        <text class="axis-label" x="45" y="204" text-anchor="end">-60</text>
+
+        <!-- Scale ticks -->
+        <line class="grid" x1="47" y1="20" x2="50" y2="20"/>
+        <line class="grid" x1="47" y1="50" x2="50" y2="50"/>
+        <line class="grid" x1="47" y1="80" x2="50" y2="80"/>
+        <line class="grid" x1="47" y1="110" x2="50" y2="110"/>
+        <line class="grid" x1="47" y1="140" x2="50" y2="140"/>
+        <line class="grid" x1="47" y1="170" x2="50" y2="170"/>
+        <line class="grid" x1="47" y1="200" x2="50" y2="200"/>
+
+        <!-- -14 LUFS reference line (streaming target) -->
+        <line class="ref-line" x1="50" y1="62" x2="160" y2="62"/>
+        <text class="ref-label" x="165" y="66">-14 LUFS (streaming target)</text>
+
+        <!-- LRA bracket -->
+        <line class="lra-bracket" x1="115" y1="48" x2="120" y2="48"/>
+        <line class="lra-bracket" x1="120" y1="48" x2="120" y2="80"/>
+        <line class="lra-bracket" x1="115" y1="80" x2="120" y2="80"/>
+        <text class="lra-label" x="125" y="68">LRA: 12 LU</text>
+
+        <!-- LUFS value -->
+        <text class="lufs-value" x="80" y="218" fill="#44ff88">-14 LUFS</text>
+        <text class="sublabel" x="150" y="235" text-anchor="middle">Moderate level, wide loudness range</text>
+    </g>
+
+    <!-- Right panel: Loud Master -->
+    <g transform="translate(450, 60)">
+        <text class="label" x="150" y="0" text-anchor="middle">Loud Master</text>
+
+        <!-- Meter background -->
+        <rect class="meter-bg" x="50" y="20" width="60" height="180" rx="3"/>
+
+        <!-- Meter fill: -6 LUFS = y = 20 + 6*3 = 38, height = 200-38 = 162 -->
+        <rect class="meter-loud" x="53" y="38" width="54" height="159" rx="2"/>
+
+        <!-- Scale labels -->
+        <text class="axis-label" x="45" y="24" text-anchor="end">0</text>
+        <text class="axis-label" x="45" y="54" text-anchor="end">-10</text>
+        <text class="axis-label" x="45" y="84" text-anchor="end">-20</text>
+        <text class="axis-label" x="45" y="114" text-anchor="end">-30</text>
+        <text class="axis-label" x="45" y="144" text-anchor="end">-40</text>
+        <text class="axis-label" x="45" y="174" text-anchor="end">-50</text>
+        <text class="axis-label" x="45" y="204" text-anchor="end">-60</text>
+
+        <!-- Scale ticks -->
+        <line class="grid" x1="47" y1="20" x2="50" y2="20"/>
+        <line class="grid" x1="47" y1="50" x2="50" y2="50"/>
+        <line class="grid" x1="47" y1="80" x2="50" y2="80"/>
+        <line class="grid" x1="47" y1="110" x2="50" y2="110"/>
+        <line class="grid" x1="47" y1="140" x2="50" y2="140"/>
+        <line class="grid" x1="47" y1="170" x2="50" y2="170"/>
+        <line class="grid" x1="47" y1="200" x2="50" y2="200"/>
+
+        <!-- -14 LUFS reference line -->
+        <line class="ref-line" x1="50" y1="62" x2="160" y2="62"/>
+        <text class="ref-label" x="165" y="66">-14 LUFS target</text>
+
+        <!-- LRA bracket (narrow) -->
+        <line class="lra-bracket" x1="115" y1="34" x2="120" y2="34"/>
+        <line class="lra-bracket" x1="120" y1="34" x2="120" y2="44"/>
+        <line class="lra-bracket" x1="115" y1="44" x2="120" y2="44"/>
+        <text class="lra-label" x="125" y="42">LRA: 3 LU</text>
+
+        <!-- LUFS value -->
+        <text class="lufs-value" x="80" y="218" fill="#ff8844">-6 LUFS</text>
+        <text class="sublabel" x="150" y="235" text-anchor="middle">Pushed hard, narrow loudness range</text>
+    </g>
+
+    <!-- Bottom legend -->
+    <g transform="translate(50, 340)">
+        <rect x="0" y="0" width="12" height="12" fill="#44ff88"/>
+        <text class="sublabel" x="20" y="10">Moderate loudness (streaming-friendly)</text>
+
+        <rect x="280" y="0" width="12" height="12" fill="#ff8844"/>
+        <text class="sublabel" x="300" y="10">Excessive loudness (hot master)</text>
+    </g>
+
+    <text class="sublabel" x="400" y="380" text-anchor="middle">Measurement: ITU-R BS.1770-4 K-weighted integrated loudness (LUFS) and loudness range (LRA)</text>
+</svg>

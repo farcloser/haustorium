@@ -1,0 +1,138 @@
+<svg viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
+    <style>
+        .bg { fill: #1a1a2e; }
+        .grid { stroke: #2a2a4e; stroke-width: 1; }
+        .axis { stroke: #4a4a6e; stroke-width: 2; }
+        .ceiling { stroke: #ff4444; stroke-width: 1; stroke-dasharray: 8,4; }
+        .ceiling-label { fill: #ff4444; font-family: monospace; font-size: 12px; }
+        .label { fill: #ffffff; font-family: sans-serif; font-size: 14px; }
+        .title { fill: #ffffff; font-family: sans-serif; font-size: 18px; font-weight: bold; }
+        .sublabel { fill: #888888; font-family: monospace; font-size: 11px; }
+        .wave-normal { fill: none; stroke: #44ff88; stroke-width: 2; }
+        .wave-bad { fill: none; stroke: #ff8844; stroke-width: 2; }
+        .sample-normal { fill: #44ff88; }
+        .sample-bad { fill: #ff8844; }
+        .overshoot { fill: #ff4444; opacity: 0.3; }
+        .isp-line { fill: none; stroke: #ff4444; stroke-width: 2; stroke-dasharray: 4,2; }
+    </style>
+
+    <rect class="bg" width="800" height="400"/>
+    <text class="title" x="400" y="30" text-anchor="middle">Inter-Sample Peaks: Hidden Overload</text>
+
+    <!-- Left panel: No ISP -->
+    <g transform="translate(50, 60)">
+        <text class="label" x="150" y="0" text-anchor="middle">No Inter-Sample Peaks</text>
+
+        <!-- Ceiling -->
+        <line class="ceiling" x1="0" y1="25" x2="300" y2="25"/>
+        <text class="ceiling-label" x="305" y="29">0 dBFS</text>
+
+        <!-- Center axis -->
+        <line class="axis" x1="0" y1="120" x2="300" y2="120"/>
+
+        <!-- Floor -->
+        <line class="ceiling" x1="0" y1="215" x2="300" y2="215"/>
+
+        <!-- Reconstructed curve (stays below ceiling) -->
+        <path class="wave-normal" d="
+            M 0,120
+            C 10,85 20,55 37,45
+            C 50,38 60,40 75,55
+            C 90,75 100,120 112,140
+            C 125,155 140,175 150,185
+            C 165,195 175,185 187,165
+            C 200,140 210,100 225,70
+            C 235,50 245,42 262,48
+            C 275,55 290,85 300,120
+        "/>
+
+        <!-- Sample dots -->
+        <circle class="sample-normal" cx="0" cy="120" r="5"/>
+        <circle class="sample-normal" cx="37" cy="45" r="5"/>
+        <circle class="sample-normal" cx="75" cy="55" r="5"/>
+        <circle class="sample-normal" cx="112" cy="140" r="5"/>
+        <circle class="sample-normal" cx="150" cy="185" r="5"/>
+        <circle class="sample-normal" cx="187" cy="165" r="5"/>
+        <circle class="sample-normal" cx="225" cy="70" r="5"/>
+        <circle class="sample-normal" cx="262" cy="48" r="5"/>
+        <circle class="sample-normal" cx="300" cy="120" r="5"/>
+
+        <text class="sublabel" x="150" y="240" text-anchor="middle">Samples and reconstruction both below 0 dBFS</text>
+    </g>
+
+    <!-- Right panel: ISP detected -->
+    <g transform="translate(450, 60)">
+        <text class="label" x="150" y="0" text-anchor="middle">Inter-Sample Peak Detected</text>
+
+        <!-- Ceiling -->
+        <line class="ceiling" x1="0" y1="25" x2="300" y2="25"/>
+        <text class="ceiling-label" x="305" y="29">0 dBFS</text>
+
+        <!-- Center axis -->
+        <line class="axis" x1="0" y1="120" x2="300" y2="120"/>
+
+        <!-- Floor -->
+        <line class="ceiling" x1="0" y1="215" x2="300" y2="215"/>
+
+        <!-- Overshoot highlight region -->
+        <rect class="overshoot" x="18" y="8" width="55" height="17"/>
+
+        <!-- Reconstructed curve (overshoots between samples) -->
+        <path class="wave-bad" d="
+            M 0,120
+            C 8,80 16,40 30,15
+        "/>
+        <!-- ISP portion above ceiling -->
+        <path class="isp-line" d="
+            C 8,80 16,40 30,15
+        " transform="translate(0,0)"/>
+        <path class="wave-bad" d="
+            M 0,120
+            C 8,80 16,40 30,15
+            C 40,5 50,8 56,15
+            C 68,32 80,65 93,85
+            C 105,105 115,130 130,155
+            C 145,175 158,192 168,195
+            C 180,195 192,180 205,155
+            C 215,135 225,105 240,75
+            C 250,55 260,38 270,32
+            C 280,28 290,40 300,65
+        "/>
+
+        <!-- ISP overshoot line (above ceiling) -->
+        <path fill="none" stroke="#ff4444" stroke-width="2.5" d="
+            M 22,25 C 28,12 38,5 45,8 C 52,12 58,20 62,25
+        "/>
+
+        <!-- Sample dots (all below ceiling) -->
+        <circle class="sample-bad" cx="0" cy="120" r="5"/>
+        <circle class="sample-bad" cx="37" cy="30" r="5"/>
+        <circle class="sample-bad" cx="75" cy="32" r="5"/>
+        <circle class="sample-bad" cx="112" cy="105" r="5"/>
+        <circle class="sample-bad" cx="150" cy="175" r="5"/>
+        <circle class="sample-bad" cx="187" cy="185" r="5"/>
+        <circle class="sample-bad" cx="225" cy="85" r="5"/>
+        <circle class="sample-bad" cx="262" cy="32" r="5"/>
+        <circle class="sample-bad" cx="300" cy="65" r="5"/>
+
+        <!-- ISP annotation -->
+        <line x1="42" y1="3" x2="42" y2="25" stroke="#ff4444" stroke-width="1" stroke-dasharray="2,2"/>
+        <text fill="#ff4444" font-family="monospace" font-size="9px" x="48" y="8">+1.2 dB ISP</text>
+
+        <text class="sublabel" x="150" y="240" text-anchor="middle">Samples below 0 dBFS, but reconstruction overshoots</text>
+    </g>
+
+    <!-- Bottom legend -->
+    <g transform="translate(50, 340)">
+        <rect x="0" y="0" width="12" height="12" fill="#44ff88"/>
+        <text class="sublabel" x="20" y="10">Safe signal (samples + reconstruction)</text>
+
+        <rect x="260" y="0" width="12" height="12" fill="#ff8844"/>
+        <text class="sublabel" x="280" y="10">Samples below ceiling</text>
+
+        <rect x="450" y="0" width="12" height="12" fill="#ff4444"/>
+        <text class="sublabel" x="470" y="10">Reconstruction overshoot</text>
+    </g>
+
+    <text class="sublabel" x="400" y="380" text-anchor="middle">Detection: ITU-R BS.1770 4x oversampling. Mild: 1 ISP | Moderate: 100 | Severe: 1000</text>
+</svg>

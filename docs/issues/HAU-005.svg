@@ -1,0 +1,123 @@
+<svg viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
+    <style>
+        .bg { fill: #1a1a2e; }
+        .grid { stroke: #2a2a4e; stroke-width: 1; }
+        .axis { stroke: #4a4a6e; stroke-width: 2; }
+        .label { fill: #ffffff; font-family: sans-serif; font-size: 14px; }
+        .title { fill: #ffffff; font-family: sans-serif; font-size: 18px; font-weight: bold; }
+        .sublabel { fill: #888888; font-family: monospace; font-size: 11px; }
+        .ch-label { fill: #666666; font-family: monospace; font-size: 11px; font-weight: bold; }
+        .wave-l { fill: none; stroke: #44ff88; stroke-width: 2; }
+        .wave-r { fill: none; stroke: #44ff88; stroke-width: 2; stroke-dasharray: 6,3; opacity: 0.7; }
+        .wave-l-bad { fill: none; stroke: #ff8844; stroke-width: 2; }
+        .wave-r-bad { fill: none; stroke: #ff8844; stroke-width: 2; stroke-dasharray: 6,3; opacity: 0.7; }
+    </style>
+
+    <rect class="bg" width="800" height="400"/>
+    <text class="title" x="400" y="30" text-anchor="middle">Fake Stereo: Identical L/R Channels</text>
+
+    <!-- Left panel: Genuine Stereo -->
+    <g transform="translate(50, 60)">
+        <text class="label" x="150" y="0" text-anchor="middle">Genuine Stereo</text>
+
+        <!-- L channel area -->
+        <text class="ch-label" x="-5" y="60" text-anchor="end">L</text>
+        <line class="axis" x1="0" y1="55" x2="300" y2="55"/>
+        <path class="wave-l" d="
+            M 0,55
+            C 12,30 25,25 37,35
+            C 50,45 62,75 75,80
+            C 87,78 100,40 112,30
+            C 125,28 137,55 150,65
+            C 162,72 175,60 187,42
+            C 200,30 212,35 225,55
+            C 237,70 250,78 262,70
+            C 275,60 287,45 300,50
+        "/>
+
+        <!-- Divider -->
+        <line class="grid" x1="0" y1="105" x2="300" y2="105"/>
+
+        <!-- R channel area -->
+        <text class="ch-label" x="-5" y="155" text-anchor="end">R</text>
+        <line class="axis" x1="0" y1="150" x2="300" y2="150"/>
+        <path class="wave-r" d="
+            M 0,155
+            C 15,140 30,130 50,135
+            C 70,142 85,170 100,175
+            C 115,172 130,145 145,130
+            C 160,125 180,155 195,165
+            C 210,170 225,155 240,140
+            C 255,130 270,135 285,150
+            L 300,155
+        "/>
+
+        <text class="sublabel" x="150" y="215" text-anchor="middle">r = 0.45 &#x2014; distinct independent channels</text>
+    </g>
+
+    <!-- Right panel: Fake Stereo -->
+    <g transform="translate(450, 60)">
+        <text class="label" x="150" y="0" text-anchor="middle">Fake Stereo (mono in disguise)</text>
+
+        <!-- L channel area -->
+        <text class="ch-label" x="-5" y="60" text-anchor="end">L</text>
+        <line class="axis" x1="0" y1="55" x2="300" y2="55"/>
+        <path class="wave-l-bad" d="
+            M 0,55
+            C 12,30 25,25 37,35
+            C 50,45 62,75 75,80
+            C 87,78 100,40 112,30
+            C 125,28 137,55 150,65
+            C 162,72 175,60 187,42
+            C 200,30 212,35 225,55
+            C 237,70 250,78 262,70
+            C 275,60 287,45 300,50
+        "/>
+
+        <!-- Divider -->
+        <line class="grid" x1="0" y1="105" x2="300" y2="105"/>
+
+        <!-- R channel area - IDENTICAL to L -->
+        <text class="ch-label" x="-5" y="155" text-anchor="end">R</text>
+        <line class="axis" x1="0" y1="150" x2="300" y2="150"/>
+        <!-- Same waveform shape as L, shifted to R position -->
+        <path class="wave-l-bad" d="
+            M 0,150
+            C 12,125 25,120 37,130
+            C 50,140 62,170 75,175
+            C 87,173 100,135 112,125
+            C 125,123 137,150 150,160
+            C 162,167 175,155 187,137
+            C 200,125 212,130 225,150
+            C 237,165 250,173 262,165
+            C 275,155 287,140 300,145
+        "/>
+        <path class="wave-r-bad" d="
+            M 0,150
+            C 12,125 25,120 37,130
+            C 50,140 62,170 75,175
+            C 87,173 100,135 112,125
+            C 125,123 137,150 150,160
+            C 162,167 175,155 187,137
+            C 200,125 212,130 225,150
+            C 237,165 250,173 262,165
+            C 275,155 287,140 300,145
+        "/>
+
+        <!-- "= L" annotation -->
+        <text fill="#ff4444" font-family="monospace" font-size="10px" x="305" y="155">= L</text>
+
+        <text class="sublabel" x="150" y="215" text-anchor="middle">r > 0.98, diff &lt; -60 dB &#x2014; channels identical</text>
+    </g>
+
+    <!-- Bottom legend -->
+    <g transform="translate(50, 340)">
+        <rect x="0" y="0" width="12" height="12" fill="#44ff88"/>
+        <text class="sublabel" x="20" y="10">Independent stereo channels</text>
+
+        <rect x="230" y="0" width="12" height="12" fill="#ff8844"/>
+        <text class="sublabel" x="250" y="10">Duplicate mono channels</text>
+    </g>
+
+    <text class="sublabel" x="400" y="380" text-anchor="middle">Detection: Pearson correlation > 0.98 and channel difference &lt; -60 dB</text>
+</svg>

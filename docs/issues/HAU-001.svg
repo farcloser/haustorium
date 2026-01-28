@@ -1,0 +1,104 @@
+<svg viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
+    <style>
+        .bg { fill: #1a1a2e; }
+        .grid { stroke: #2a2a4e; stroke-width: 1; }
+        .axis { stroke: #4a4a6e; stroke-width: 2; }
+        .ceiling { stroke: #ff4444; stroke-width: 1; stroke-dasharray: 8,4; }
+        .ceiling-label { fill: #ff4444; font-family: monospace; font-size: 12px; }
+        .wave-normal { fill: none; stroke: #44ff88; stroke-width: 2; }
+        .wave-clipped { fill: none; stroke: #ff8844; stroke-width: 2; }
+        .label { fill: #ffffff; font-family: sans-serif; font-size: 14px; }
+        .title { fill: #ffffff; font-family: sans-serif; font-size: 18px; font-weight: bold; }
+        .sublabel { fill: #888888; font-family: monospace; font-size: 11px; }
+    </style>
+
+    <!-- Background -->
+    <rect class="bg" width="800" height="400"/>
+
+    <!-- Title -->
+    <text class="title" x="400" y="30" text-anchor="middle">Clipping: Signal Exceeds Digital Ceiling</text>
+
+    <!-- Left panel: Normal -->
+    <g transform="translate(50, 60)">
+        <text class="label" x="150" y="0" text-anchor="middle">Normal Signal</text>
+
+        <!-- Grid -->
+        <line class="grid" x1="0" y1="70" x2="300" y2="70"/>
+        <line class="grid" x1="0" y1="140" x2="300" y2="140"/>
+
+        <!-- Ceiling lines -->
+        <line class="ceiling" x1="0" y1="20" x2="300" y2="20"/>
+        <line class="ceiling" x1="0" y1="190" x2="300" y2="190"/>
+        <text class="ceiling-label" x="305" y="24">+1.0 (0 dBFS)</text>
+        <text class="ceiling-label" x="305" y="194">-1.0</text>
+
+        <!-- Center axis -->
+        <line class="axis" x1="0" y1="105" x2="300" y2="105"/>
+        <text class="sublabel" x="305" y="109">0.0</text>
+
+        <!-- Normal sine wave (stays within bounds) -->
+        <path class="wave-normal" d="
+      M 0,105
+      C 25,45 50,45 75,105
+      C 100,165 125,165 150,105
+      C 175,45 200,45 225,105
+      C 250,165 275,165 300,105
+    "/>
+
+        <text class="sublabel" x="150" y="230" text-anchor="middle">Peak: -3 dB (headroom preserved)</text>
+    </g>
+
+    <!-- Right panel: Clipped -->
+    <g transform="translate(450, 60)">
+        <text class="label" x="150" y="0" text-anchor="middle">Clipped Signal</text>
+
+        <!-- Grid -->
+        <line class="grid" x1="0" y1="70" x2="300" y2="70"/>
+        <line class="grid" x1="0" y1="140" x2="300" y2="140"/>
+
+        <!-- Ceiling lines -->
+        <line class="ceiling" x1="0" y1="20" x2="300" y2="20"/>
+        <line class="ceiling" x1="0" y1="190" x2="300" y2="190"/>
+        <text class="ceiling-label" x="305" y="24">+1.0 (0 dBFS)</text>
+        <text class="ceiling-label" x="305" y="194">-1.0</text>
+
+        <!-- Center axis -->
+        <line class="axis" x1="0" y1="105" x2="300" y2="105"/>
+        <text class="sublabel" x="305" y="109">0.0</text>
+
+        <!-- Clipped wave (flat tops where it exceeds ceiling) -->
+        <path class="wave-clipped" d="
+      M 0,105
+      C 15,55 25,20 37,20
+      L 63,20
+      C 75,20 85,55 100,105
+      C 115,155 125,190 137,190
+      L 163,190
+      C 175,190 185,155 200,105
+      C 215,55 225,20 237,20
+      L 263,20
+      C 275,20 285,55 300,105
+    "/>
+
+        <!-- Highlight clipped regions -->
+        <rect x="37" y="15" width="26" height="10" fill="#ff4444" opacity="0.3"/>
+        <rect x="137" y="185" width="26" height="10" fill="#ff4444" opacity="0.3"/>
+        <rect x="237" y="15" width="26" height="10" fill="#ff4444" opacity="0.3"/>
+
+        <text class="sublabel" x="150" y="230" text-anchor="middle">Peak: 0 dBFS (consecutive samples at ceiling)</text>
+    </g>
+
+    <!-- Bottom explanation -->
+    <g transform="translate(50, 340)">
+        <rect x="0" y="0" width="12" height="12" fill="#44ff88"/>
+        <text class="sublabel" x="20" y="10">Clean signal</text>
+
+        <rect x="150" y="0" width="12" height="12" fill="#ff8844"/>
+        <text class="sublabel" x="170" y="10">Clipped signal</text>
+
+        <rect x="300" y="0" width="12" height="12" fill="#ff4444" opacity="0.3"/>
+        <text class="sublabel" x="320" y="10">Clipped regions (flat tops = distortion)</text>
+    </g>
+
+    <text class="sublabel" x="400" y="380" text-anchor="middle">Detection: ≥2 consecutive samples at ±1.0 (or bit-depth maximum)</text>
+</svg>

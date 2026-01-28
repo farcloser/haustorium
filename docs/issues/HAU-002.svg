@@ -1,0 +1,169 @@
+<svg viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
+    <style>
+        .bg { fill: #1a1a2e; }
+        .label { fill: #ffffff; font-family: sans-serif; font-size: 14px; }
+        .title { fill: #ffffff; font-family: sans-serif; font-size: 18px; font-weight: bold; }
+        .sublabel { fill: #888888; font-family: monospace; font-size: 11px; }
+        .col-header { fill: #666666; font-family: monospace; font-size: 9px; text-anchor: middle; }
+        .byte-genuine { fill: #44ff88; }
+        .byte-data { fill: #ff8844; }
+        .byte-dead { fill: #ff4444; opacity: 0.3; }
+        .byte-or-active { fill: #44ff88; opacity: 0.8; }
+        .byte-or-dead { fill: #ff4444; opacity: 0.5; }
+        .byte-text { fill: #1a1a2e; font-family: monospace; font-size: 11px; font-weight: bold; text-anchor: middle; dominant-baseline: central; }
+        .byte-text-dim { fill: #777777; font-family: monospace; font-size: 11px; font-weight: bold; text-anchor: middle; dominant-baseline: central; }
+        .or-line { stroke: #4a4a6e; stroke-width: 1; stroke-dasharray: 4,3; }
+        .or-label { fill: #ffffff; font-family: monospace; font-size: 10px; font-weight: bold; dominant-baseline: central; text-anchor: end; }
+    </style>
+
+    <!-- Background -->
+    <rect class="bg" width="800" height="400"/>
+
+    <!-- Title -->
+    <text class="title" x="400" y="30" text-anchor="middle">Fake Bit-Depth: Zero-Padded Lower Bits</text>
+
+    <!-- Left panel: Genuine 24-bit -->
+    <g transform="translate(50, 60)">
+        <text class="label" x="150" y="0" text-anchor="middle">Genuine 24-bit</text>
+
+        <!-- Column headers -->
+        <text class="col-header" x="50" y="18">bits 23&#x2013;16</text>
+        <text class="col-header" x="150" y="18">bits 15&#x2013;8</text>
+        <text class="col-header" x="250" y="18">bits 7&#x2013;0</text>
+
+        <!-- Sample 1 -->
+        <rect class="byte-genuine" x="5" y="28" width="90" height="22" rx="2"/>
+        <rect class="byte-genuine" x="105" y="28" width="90" height="22" rx="2"/>
+        <rect class="byte-genuine" x="205" y="28" width="90" height="22" rx="2"/>
+        <text class="byte-text" x="50" y="39">3A</text>
+        <text class="byte-text" x="150" y="39">7F</text>
+        <text class="byte-text" x="250" y="39">2B</text>
+
+        <!-- Sample 2 -->
+        <rect class="byte-genuine" x="5" y="54" width="90" height="22" rx="2"/>
+        <rect class="byte-genuine" x="105" y="54" width="90" height="22" rx="2"/>
+        <rect class="byte-genuine" x="205" y="54" width="90" height="22" rx="2"/>
+        <text class="byte-text" x="50" y="65">C5</text>
+        <text class="byte-text" x="150" y="65">10</text>
+        <text class="byte-text" x="250" y="65">9E</text>
+
+        <!-- Sample 3 -->
+        <rect class="byte-genuine" x="5" y="80" width="90" height="22" rx="2"/>
+        <rect class="byte-genuine" x="105" y="80" width="90" height="22" rx="2"/>
+        <rect class="byte-genuine" x="205" y="80" width="90" height="22" rx="2"/>
+        <text class="byte-text" x="50" y="91">1B</text>
+        <text class="byte-text" x="150" y="91">E4</text>
+        <text class="byte-text" x="250" y="91">D3</text>
+
+        <!-- Sample 4 -->
+        <rect class="byte-genuine" x="5" y="106" width="90" height="22" rx="2"/>
+        <rect class="byte-genuine" x="105" y="106" width="90" height="22" rx="2"/>
+        <rect class="byte-genuine" x="205" y="106" width="90" height="22" rx="2"/>
+        <text class="byte-text" x="50" y="117">89</text>
+        <text class="byte-text" x="150" y="117">21</text>
+        <text class="byte-text" x="250" y="117">A7</text>
+
+        <!-- Sample 5 -->
+        <rect class="byte-genuine" x="5" y="132" width="90" height="22" rx="2"/>
+        <rect class="byte-genuine" x="105" y="132" width="90" height="22" rx="2"/>
+        <rect class="byte-genuine" x="205" y="132" width="90" height="22" rx="2"/>
+        <text class="byte-text" x="50" y="143">F2</text>
+        <text class="byte-text" x="150" y="143">5D</text>
+        <text class="byte-text" x="250" y="143">41</text>
+
+        <!-- OR separator -->
+        <line class="or-line" x1="5" y1="162" x2="295" y2="162"/>
+        <text class="or-label" x="0" y="181">OR</text>
+
+        <!-- OR result -->
+        <rect class="byte-or-active" x="5" y="170" width="90" height="22" rx="2"/>
+        <rect class="byte-or-active" x="105" y="170" width="90" height="22" rx="2"/>
+        <rect class="byte-or-active" x="205" y="170" width="90" height="22" rx="2"/>
+        <text class="byte-text" x="50" y="181">FF</text>
+        <text class="byte-text" x="150" y="181">FF</text>
+        <text class="byte-text" x="250" y="181">FF</text>
+
+        <text class="sublabel" x="150" y="210" text-anchor="middle">All 24 bits carry signal data</text>
+    </g>
+
+    <!-- Right panel: Fake 24-bit -->
+    <g transform="translate(450, 60)">
+        <text class="label" x="150" y="0" text-anchor="middle">Fake 24-bit (padded 16-bit)</text>
+
+        <!-- Column headers -->
+        <text class="col-header" x="50" y="18">bits 23&#x2013;16</text>
+        <text class="col-header" x="150" y="18">bits 15&#x2013;8</text>
+        <text class="col-header" x="250" y="18">bits 7&#x2013;0</text>
+
+        <!-- Vertical divider between real data and padding -->
+        <line x1="200" y1="25" x2="200" y2="195" stroke="#ff4444" stroke-width="1" stroke-dasharray="4,3" opacity="0.5"/>
+
+        <!-- Sample 1 -->
+        <rect class="byte-data" x="5" y="28" width="90" height="22" rx="2"/>
+        <rect class="byte-data" x="105" y="28" width="90" height="22" rx="2"/>
+        <rect class="byte-dead" x="205" y="28" width="90" height="22" rx="2"/>
+        <text class="byte-text" x="50" y="39">3A</text>
+        <text class="byte-text" x="150" y="39">7F</text>
+        <text class="byte-text-dim" x="250" y="39">00</text>
+
+        <!-- Sample 2 -->
+        <rect class="byte-data" x="5" y="54" width="90" height="22" rx="2"/>
+        <rect class="byte-data" x="105" y="54" width="90" height="22" rx="2"/>
+        <rect class="byte-dead" x="205" y="54" width="90" height="22" rx="2"/>
+        <text class="byte-text" x="50" y="65">C5</text>
+        <text class="byte-text" x="150" y="65">10</text>
+        <text class="byte-text-dim" x="250" y="65">00</text>
+
+        <!-- Sample 3 -->
+        <rect class="byte-data" x="5" y="80" width="90" height="22" rx="2"/>
+        <rect class="byte-data" x="105" y="80" width="90" height="22" rx="2"/>
+        <rect class="byte-dead" x="205" y="80" width="90" height="22" rx="2"/>
+        <text class="byte-text" x="50" y="91">1B</text>
+        <text class="byte-text" x="150" y="91">E4</text>
+        <text class="byte-text-dim" x="250" y="91">00</text>
+
+        <!-- Sample 4 -->
+        <rect class="byte-data" x="5" y="106" width="90" height="22" rx="2"/>
+        <rect class="byte-data" x="105" y="106" width="90" height="22" rx="2"/>
+        <rect class="byte-dead" x="205" y="106" width="90" height="22" rx="2"/>
+        <text class="byte-text" x="50" y="117">89</text>
+        <text class="byte-text" x="150" y="117">21</text>
+        <text class="byte-text-dim" x="250" y="117">00</text>
+
+        <!-- Sample 5 -->
+        <rect class="byte-data" x="5" y="132" width="90" height="22" rx="2"/>
+        <rect class="byte-data" x="105" y="132" width="90" height="22" rx="2"/>
+        <rect class="byte-dead" x="205" y="132" width="90" height="22" rx="2"/>
+        <text class="byte-text" x="50" y="143">F2</text>
+        <text class="byte-text" x="150" y="143">5D</text>
+        <text class="byte-text-dim" x="250" y="143">00</text>
+
+        <!-- OR separator -->
+        <line class="or-line" x1="5" y1="162" x2="295" y2="162"/>
+        <text class="or-label" x="0" y="181">OR</text>
+
+        <!-- OR result -->
+        <rect class="byte-or-active" x="5" y="170" width="90" height="22" rx="2"/>
+        <rect class="byte-or-active" x="105" y="170" width="90" height="22" rx="2"/>
+        <rect class="byte-or-dead" x="205" y="170" width="90" height="22" rx="2"/>
+        <text class="byte-text" x="50" y="181">FF</text>
+        <text class="byte-text" x="150" y="181">FF</text>
+        <text class="byte-text-dim" x="250" y="181">00</text>
+
+        <text class="sublabel" x="150" y="210" text-anchor="middle">Lower 8 bits never set &#x2014; 16-bit zero-padded</text>
+    </g>
+
+    <!-- Bottom legend -->
+    <g transform="translate(50, 340)">
+        <rect x="0" y="0" width="12" height="12" fill="#44ff88"/>
+        <text class="sublabel" x="20" y="10">Genuine high-res data</text>
+
+        <rect x="200" y="0" width="12" height="12" fill="#ff8844"/>
+        <text class="sublabel" x="220" y="10">Real data in fake container</text>
+
+        <rect x="430" y="0" width="12" height="12" fill="#ff4444" opacity="0.3"/>
+        <text class="sublabel" x="450" y="10">Dead bits (always zero)</text>
+    </g>
+
+    <text class="sublabel" x="400" y="380" text-anchor="middle">Detection: OR-accumulate all samples &#x2014; if lower N bits never set, bit-depth is fake</text>
+</svg>

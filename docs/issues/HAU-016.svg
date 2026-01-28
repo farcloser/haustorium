@@ -1,0 +1,125 @@
+<svg viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
+    <style>
+        .bg { fill: #1a1a2e; }
+        .grid { stroke: #2a2a4e; stroke-width: 1; }
+        .axis { stroke: #4a4a6e; stroke-width: 2; }
+        .label { fill: #ffffff; font-family: sans-serif; font-size: 14px; }
+        .title { fill: #ffffff; font-family: sans-serif; font-size: 18px; font-weight: bold; }
+        .sublabel { fill: #888888; font-family: monospace; font-size: 11px; }
+        .axis-label { fill: #666666; font-family: monospace; font-size: 9px; }
+        .fill-normal { fill: #44ff88; opacity: 0.3; }
+        .fill-bad { fill: #ff8844; opacity: 0.3; }
+        .env-normal { fill: none; stroke: #44ff88; stroke-width: 1.5; }
+        .env-bad { fill: none; stroke: #ff8844; stroke-width: 1.5; }
+        .cut-line { stroke: #ff4444; stroke-width: 2; stroke-dasharray: 6,3; }
+        .cut-marker { fill: #ff4444; opacity: 0.15; }
+    </style>
+
+    <rect class="bg" width="800" height="400"/>
+    <text class="title" x="400" y="30" text-anchor="middle">Truncation: Abrupt Ending</text>
+
+    <!-- Left panel: Proper Ending -->
+    <g transform="translate(50, 60)">
+        <text class="label" x="150" y="0" text-anchor="middle">Proper Ending (fade-out)</text>
+
+        <!-- Center axis -->
+        <line class="axis" x1="0" y1="110" x2="300" y2="110"/>
+
+        <!-- Time labels -->
+        <text class="axis-label" x="0" y="215" text-anchor="start">&#x2190; track</text>
+        <text class="axis-label" x="300" y="215" text-anchor="end">end &#x2192;</text>
+
+        <!-- Fade-out waveform envelope (upper) -->
+        <path class="fill-normal" d="
+            M 0,40 L 20,35 L 40,42 L 60,32 L 80,45
+            L 100,38 L 120,50 L 140,55 L 160,65
+            L 180,72 L 200,80 L 220,88 L 240,95
+            L 260,100 L 280,105 L 300,110
+            L 300,110
+            L 280,115 L 260,120 L 240,125
+            L 220,132 L 200,140 L 180,148
+            L 160,155 L 140,165 L 120,170
+            L 100,182 L 80,175 L 60,188
+            L 40,178 L 20,185 L 0,180 Z
+        "/>
+        <path class="env-normal" d="
+            M 0,40 L 20,35 L 40,42 L 60,32 L 80,45
+            L 100,38 L 120,50 L 140,55 L 160,65
+            L 180,72 L 200,80 L 220,88 L 240,95
+            L 260,100 L 280,105 L 300,110
+        "/>
+        <path class="env-normal" d="
+            M 0,180 L 20,185 L 40,178 L 60,188 L 80,175
+            L 100,182 L 120,170 L 140,165 L 160,155
+            L 180,148 L 200,140 L 220,132 L 240,125
+            L 260,120 L 280,115 L 300,110
+        "/>
+
+        <text class="sublabel" x="150" y="235" text-anchor="middle">Signal fades naturally to silence</text>
+    </g>
+
+    <!-- Right panel: Truncated -->
+    <g transform="translate(450, 60)">
+        <text class="label" x="150" y="0" text-anchor="middle">Truncated (abrupt cut)</text>
+
+        <!-- Center axis -->
+        <line class="axis" x1="0" y1="110" x2="300" y2="110"/>
+
+        <!-- Time labels -->
+        <text class="axis-label" x="0" y="215" text-anchor="start">&#x2190; track</text>
+        <text class="axis-label" x="300" y="215" text-anchor="end">end &#x2192;</text>
+
+        <!-- Cut line -->
+        <line class="cut-line" x1="230" y1="15" x2="230" y2="205"/>
+
+        <!-- Dead zone after cut -->
+        <rect class="cut-marker" x="230" y="15" width="70" height="190"/>
+
+        <!-- Waveform at full level, then abrupt cut -->
+        <path class="fill-bad" d="
+            M 0,40 L 20,35 L 40,42 L 60,32 L 80,45
+            L 100,38 L 120,42 L 140,35 L 160,40
+            L 180,33 L 200,38 L 220,35 L 228,37
+            L 228,110 L 230,110
+            L 230,110 L 300,110
+            L 300,110
+            L 230,110 L 228,110
+            L 228,183 L 220,185 L 200,182 L 180,187
+            L 160,180 L 140,185 L 120,178 L 100,182
+            L 80,175 L 60,188 L 40,178 L 20,185 L 0,180 Z
+        "/>
+        <path class="env-bad" d="
+            M 0,40 L 20,35 L 40,42 L 60,32 L 80,45
+            L 100,38 L 120,42 L 140,35 L 160,40
+            L 180,33 L 200,38 L 220,35 L 228,37
+        "/>
+        <path class="env-bad" d="
+            M 0,180 L 20,185 L 40,178 L 60,188 L 80,175
+            L 100,182 L 120,178 L 140,185 L 160,180
+            L 180,187 L 200,182 L 220,185 L 228,183
+        "/>
+
+        <!-- Silence after cut -->
+        <line x1="230" y1="110" x2="300" y2="110" stroke="#ff4444" stroke-width="1" opacity="0.5"/>
+
+        <!-- Cut annotation -->
+        <text fill="#ff4444" font-family="monospace" font-size="10px" x="265" y="60" text-anchor="middle">still loud</text>
+        <text fill="#ff4444" font-family="monospace" font-size="10px" x="265" y="73" text-anchor="middle">at end!</text>
+
+        <text class="sublabel" x="150" y="235" text-anchor="middle">Signal still active when track ends abruptly</text>
+    </g>
+
+    <!-- Bottom legend -->
+    <g transform="translate(50, 340)">
+        <rect x="0" y="0" width="12" height="12" fill="#44ff88"/>
+        <text class="sublabel" x="20" y="10">Natural fade-out</text>
+
+        <rect x="180" y="0" width="12" height="12" fill="#ff8844"/>
+        <text class="sublabel" x="200" y="10">Truncated signal</text>
+
+        <rect x="360" y="0" width="12" height="12" fill="#ff4444" opacity="0.3"/>
+        <text class="sublabel" x="380" y="10">Abrupt cut point</text>
+    </g>
+
+    <text class="sublabel" x="400" y="380" text-anchor="middle">Detection: RMS of final 50 ms. Mild: -40 dB | Moderate: -30 dB | Severe: -20 dB (digital)</text>
+</svg>

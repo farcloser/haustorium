@@ -1,0 +1,125 @@
+<svg viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
+    <style>
+        .bg { fill: #1a1a2e; }
+        .grid { stroke: #2a2a4e; stroke-width: 1; }
+        .axis { stroke: #4a4a6e; stroke-width: 2; }
+        .label { fill: #ffffff; font-family: sans-serif; font-size: 14px; }
+        .title { fill: #ffffff; font-family: sans-serif; font-size: 18px; font-weight: bold; }
+        .sublabel { fill: #888888; font-family: monospace; font-size: 11px; }
+        .axis-label { fill: #666666; font-family: monospace; font-size: 9px; }
+        .spectrum-normal { fill: none; stroke: #44ff88; stroke-width: 1.5; }
+        .spectrum-bad { fill: none; stroke: #ff8844; stroke-width: 1.5; }
+        .fill-normal { fill: #44ff88; opacity: 0.15; }
+        .fill-bad { fill: #ff8844; opacity: 0.15; }
+        .spike { fill: #ff4444; opacity: 0.8; }
+        .spike-label { fill: #ff4444; font-family: monospace; font-size: 8px; text-anchor: middle; }
+    </style>
+
+    <rect class="bg" width="800" height="400"/>
+    <text class="title" x="400" y="30" text-anchor="middle">Mains Hum: Electrical Contamination</text>
+
+    <!-- Left panel: Clean Spectrum -->
+    <g transform="translate(50, 60)">
+        <text class="label" x="140" y="0" text-anchor="middle">Clean Spectrum</text>
+
+        <!-- Grid -->
+        <line class="grid" x1="0" y1="65" x2="280" y2="65"/>
+        <line class="grid" x1="0" y1="110" x2="280" y2="110"/>
+        <line class="grid" x1="0" y1="155" x2="280" y2="155"/>
+
+        <!-- Axes -->
+        <line class="axis" x1="0" y1="20" x2="0" y2="200"/>
+        <line class="axis" x1="0" y1="200" x2="280" y2="200"/>
+
+        <!-- dB labels -->
+        <text class="axis-label" x="285" y="24">0 dB</text>
+        <text class="axis-label" x="285" y="68">-20</text>
+        <text class="axis-label" x="285" y="114">-40</text>
+        <text class="axis-label" x="285" y="159">-60</text>
+
+        <!-- Frequency labels (0-500 Hz, focused on low freq) -->
+        <text class="axis-label" x="0" y="215" text-anchor="middle">0</text>
+        <text class="axis-label" x="56" y="215" text-anchor="middle">100</text>
+        <text class="axis-label" x="112" y="215" text-anchor="middle">200</text>
+        <text class="axis-label" x="168" y="215" text-anchor="middle">300</text>
+        <text class="axis-label" x="224" y="215" text-anchor="middle">400</text>
+        <text class="axis-label" x="280" y="215" text-anchor="middle">Hz</text>
+
+        <!-- Filled spectrum -->
+        <path class="fill-normal" d="M 0,50 C 15,52 30,56 56,68 C 80,78 110,95 140,110 C 170,122 210,135 240,142 C 260,148 275,150 280,152 L 280,200 L 0,200 Z"/>
+        <!-- Spectrum line -->
+        <path class="spectrum-normal" d="M 0,50 C 15,52 30,56 56,68 C 80,78 110,95 140,110 C 170,122 210,135 240,142 C 260,148 275,150 280,152"/>
+
+        <text class="sublabel" x="140" y="235" text-anchor="middle">Smooth bass response &#x2014; no anomalies</text>
+    </g>
+
+    <!-- Right panel: Hum Contamination -->
+    <g transform="translate(450, 60)">
+        <text class="label" x="140" y="0" text-anchor="middle">50 Hz Hum Contamination</text>
+
+        <!-- Grid -->
+        <line class="grid" x1="0" y1="65" x2="280" y2="65"/>
+        <line class="grid" x1="0" y1="110" x2="280" y2="110"/>
+        <line class="grid" x1="0" y1="155" x2="280" y2="155"/>
+
+        <!-- Axes -->
+        <line class="axis" x1="0" y1="20" x2="0" y2="200"/>
+        <line class="axis" x1="0" y1="200" x2="280" y2="200"/>
+
+        <!-- dB labels -->
+        <text class="axis-label" x="285" y="24">0 dB</text>
+        <text class="axis-label" x="285" y="68">-20</text>
+        <text class="axis-label" x="285" y="114">-40</text>
+        <text class="axis-label" x="285" y="159">-60</text>
+
+        <!-- Frequency labels -->
+        <text class="axis-label" x="0" y="215" text-anchor="middle">0</text>
+        <text class="axis-label" x="56" y="215" text-anchor="middle">100</text>
+        <text class="axis-label" x="112" y="215" text-anchor="middle">200</text>
+        <text class="axis-label" x="168" y="215" text-anchor="middle">300</text>
+        <text class="axis-label" x="224" y="215" text-anchor="middle">400</text>
+        <text class="axis-label" x="280" y="215" text-anchor="middle">Hz</text>
+
+        <!-- Base spectrum (same as clean) -->
+        <path class="fill-bad" d="M 0,50 C 15,52 30,56 56,68 C 80,78 110,95 140,110 C 170,122 210,135 240,142 C 260,148 275,150 280,152 L 280,200 L 0,200 Z"/>
+        <path class="spectrum-bad" d="M 0,50 C 15,52 30,56 56,68 C 80,78 110,95 140,110 C 170,122 210,135 240,142 C 260,148 275,150 280,152"/>
+
+        <!-- Hum spikes at 50 Hz harmonics -->
+        <!-- 50 Hz (x=28) -->
+        <path class="spike" d="M 26,58 L 28,28 L 30,58 Z"/>
+        <text class="spike-label" x="28" y="24">50</text>
+
+        <!-- 100 Hz (x=56) -->
+        <path class="spike" d="M 54,68 L 56,32 L 58,68 Z"/>
+        <text class="spike-label" x="56" y="28">100</text>
+
+        <!-- 150 Hz (x=84) -->
+        <path class="spike" d="M 82,82 L 84,42 L 86,82 Z"/>
+        <text class="spike-label" x="84" y="38">150</text>
+
+        <!-- 200 Hz (x=112) -->
+        <path class="spike" d="M 110,95 L 112,52 L 114,95 Z"/>
+        <text class="spike-label" x="112" y="48">200</text>
+
+        <!-- 250 Hz (x=140) -->
+        <path class="spike" d="M 138,110 L 140,68 L 142,110 Z"/>
+        <text class="spike-label" x="140" y="64">250</text>
+
+        <!-- 300 Hz (x=168) -->
+        <path class="spike" d="M 166,122 L 168,82 L 170,122 Z"/>
+        <text class="spike-label" x="168" y="78">300</text>
+
+        <text class="sublabel" x="140" y="235" text-anchor="middle">Sharp spikes at mains frequency harmonics</text>
+    </g>
+
+    <!-- Bottom legend -->
+    <g transform="translate(50, 340)">
+        <rect x="0" y="0" width="12" height="12" fill="#44ff88"/>
+        <text class="sublabel" x="20" y="10">Clean low-frequency spectrum</text>
+
+        <rect x="240" y="0" width="12" height="12" fill="#ff4444" opacity="0.8"/>
+        <text class="sublabel" x="260" y="10">Hum harmonics (50 Hz or 60 Hz)</text>
+    </g>
+
+    <text class="sublabel" x="400" y="380" text-anchor="middle">Detection: spectral peaks >15 dB above local average at known mains harmonics</text>
+</svg>

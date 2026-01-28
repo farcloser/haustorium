@@ -1,0 +1,143 @@
+<svg viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
+    <style>
+        .bg { fill: #1a1a2e; }
+        .grid { stroke: #2a2a4e; stroke-width: 1; }
+        .axis { stroke: #4a4a6e; stroke-width: 2; }
+        .label { fill: #ffffff; font-family: sans-serif; font-size: 14px; }
+        .title { fill: #ffffff; font-family: sans-serif; font-size: 18px; font-weight: bold; }
+        .sublabel { fill: #888888; font-family: monospace; font-size: 11px; }
+        .axis-label { fill: #666666; font-family: monospace; font-size: 9px; }
+        .fill-normal { fill: #44ff88; opacity: 0.3; }
+        .fill-bad { fill: #ff8844; opacity: 0.3; }
+        .env-normal { fill: none; stroke: #44ff88; stroke-width: 1.5; }
+        .env-bad { fill: none; stroke: #ff8844; stroke-width: 1.5; }
+        .silence-marker { fill: #ff4444; opacity: 0.1; }
+        .silence-label { fill: #ff4444; font-family: monospace; font-size: 10px; text-anchor: middle; }
+        .time-bracket { stroke: #ff4444; stroke-width: 1; fill: none; }
+    </style>
+
+    <rect class="bg" width="800" height="400"/>
+    <text class="title" x="400" y="30" text-anchor="middle">Silence Padding: Excessive Dead Air</text>
+
+    <!-- Left panel: Normal Track -->
+    <g transform="translate(50, 60)">
+        <text class="label" x="150" y="0" text-anchor="middle">Normal Track</text>
+
+        <!-- Center axis -->
+        <line class="axis" x1="0" y1="110" x2="300" y2="110"/>
+
+        <!-- Time labels -->
+        <text class="axis-label" x="0" y="215" text-anchor="start">0:00</text>
+        <text class="axis-label" x="150" y="215" text-anchor="middle">track duration</text>
+        <text class="axis-label" x="300" y="215" text-anchor="end">end</text>
+
+        <!-- Brief leading silence -->
+        <rect fill="#2a2a4e" x="0" y="25" width="10" height="170" rx="1"/>
+
+        <!-- Music waveform envelope -->
+        <path class="fill-normal" d="
+            M 10,110 L 15,85 L 25,40 L 35,50 L 45,35
+            L 55,45 L 65,38 L 75,48 L 85,30
+            L 95,42 L 105,35 L 115,50 L 125,38
+            L 135,45 L 145,32 L 155,42 L 165,38
+            L 175,48 L 185,35 L 195,45 L 205,40
+            L 215,48 L 225,42 L 235,50 L 245,38
+            L 255,55 L 265,50 L 275,65 L 285,80
+            L 290,100 L 290,110
+            L 290,120 L 285,140 L 275,155 L 265,160
+            L 255,165 L 245,182 L 235,170 L 225,178
+            L 215,172 L 205,180 L 195,175 L 185,185
+            L 175,172 L 165,182 L 155,178 L 145,188
+            L 135,175 L 125,182 L 115,170 L 105,185
+            L 95,178 L 85,190 L 75,172 L 65,182
+            L 55,175 L 45,185 L 35,170 L 25,180
+            L 15,135 L 10,110 Z
+        "/>
+        <path class="env-normal" d="
+            M 10,110 L 15,85 L 25,40 L 35,50 L 45,35
+            L 55,45 L 65,38 L 75,48 L 85,30
+            L 95,42 L 105,35 L 115,50 L 125,38
+            L 135,45 L 145,32 L 155,42 L 165,38
+            L 175,48 L 185,35 L 195,45 L 205,40
+            L 215,48 L 225,42 L 235,50 L 245,38
+            L 255,55 L 265,50 L 275,65 L 285,80
+            L 290,100
+        "/>
+        <path class="env-normal" d="
+            M 10,110 L 15,135 L 25,180 L 35,170 L 45,185
+            L 55,175 L 65,182 L 75,172 L 85,190
+            L 95,178 L 105,185 L 115,170 L 125,182
+            L 135,175 L 145,188 L 155,178 L 165,182
+            L 175,172 L 185,185 L 195,175 L 205,180
+            L 215,172 L 225,178 L 235,170 L 245,182
+            L 255,165 L 265,160 L 275,155 L 285,140
+            L 290,120
+        "/>
+
+        <!-- Brief trailing silence -->
+        <rect fill="#2a2a4e" x="290" y="25" width="10" height="170" rx="1"/>
+
+        <text class="sublabel" x="150" y="235" text-anchor="middle">Brief natural silence at start/end (~0.5 s)</text>
+    </g>
+
+    <!-- Right panel: Excessive Padding -->
+    <g transform="translate(450, 60)">
+        <text class="label" x="150" y="0" text-anchor="middle">Excessive Silence Padding</text>
+
+        <!-- Center axis -->
+        <line class="axis" x1="0" y1="110" x2="300" y2="110"/>
+
+        <!-- Time labels -->
+        <text class="axis-label" x="0" y="215" text-anchor="start">0:00</text>
+        <text class="axis-label" x="300" y="215" text-anchor="end">end</text>
+
+        <!-- Leading silence (excessive) -->
+        <rect class="silence-marker" x="0" y="25" width="85" height="170"/>
+        <text class="silence-label" x="42" y="110">8s silence</text>
+
+        <!-- Compressed music section -->
+        <path class="fill-bad" d="
+            M 85,110 L 90,85 L 95,45 L 100,55 L 110,35
+            L 120,45 L 130,38 L 140,50 L 150,32
+            L 160,42 L 170,38 L 180,50 L 190,40
+            L 200,48 L 210,42 L 215,55 L 215,110
+            L 215,165 L 210,178 L 200,172 L 190,180
+            L 180,170 L 170,182 L 160,178 L 150,188
+            L 140,170 L 130,182 L 120,175 L 110,185
+            L 100,165 L 95,175 L 90,135 L 85,110 Z
+        "/>
+        <path class="env-bad" d="
+            M 85,110 L 90,85 L 95,45 L 100,55 L 110,35
+            L 120,45 L 130,38 L 140,50 L 150,32
+            L 160,42 L 170,38 L 180,50 L 190,40
+            L 200,48 L 210,42 L 215,55
+        "/>
+        <path class="env-bad" d="
+            M 85,110 L 90,135 L 95,175 L 100,165 L 110,185
+            L 120,175 L 130,182 L 140,170 L 150,188
+            L 160,178 L 170,182 L 180,170 L 190,180
+            L 200,172 L 210,178 L 215,165
+        "/>
+
+        <!-- Trailing silence (excessive) -->
+        <rect class="silence-marker" x="215" y="25" width="85" height="170"/>
+        <text class="silence-label" x="257" y="110">12s silence</text>
+
+        <!-- Duration brackets -->
+        <path class="time-bracket" d="M 0,200 L 0,205 L 85,205 L 85,200"/>
+        <path class="time-bracket" d="M 215,200 L 215,205 L 300,205 L 300,200"/>
+
+        <text class="sublabel" x="150" y="235" text-anchor="middle">Excessive dead air before and after music</text>
+    </g>
+
+    <!-- Bottom legend -->
+    <g transform="translate(50, 340)">
+        <rect x="0" y="0" width="12" height="12" fill="#44ff88"/>
+        <text class="sublabel" x="20" y="10">Normal track with brief silence</text>
+
+        <rect x="260" y="0" width="12" height="12" fill="#ff4444" opacity="0.2"/>
+        <text class="sublabel" x="280" y="10">Excessive silence padding</text>
+    </g>
+
+    <text class="sublabel" x="400" y="380" text-anchor="middle">Detection: contiguous regions below -60 dB. Mild: 2s | Moderate: 5s | Severe: 10s (digital)</text>
+</svg>

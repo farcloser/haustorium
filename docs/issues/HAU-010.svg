@@ -1,0 +1,108 @@
+<svg viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
+    <style>
+        .bg { fill: #1a1a2e; }
+        .grid { stroke: #2a2a4e; stroke-width: 1; }
+        .axis { stroke: #4a4a6e; stroke-width: 2; }
+        .ceiling { stroke: #ff4444; stroke-width: 1; stroke-dasharray: 8,4; }
+        .ceiling-label { fill: #ff4444; font-family: monospace; font-size: 12px; }
+        .label { fill: #ffffff; font-family: sans-serif; font-size: 14px; }
+        .title { fill: #ffffff; font-family: sans-serif; font-size: 18px; font-weight: bold; }
+        .sublabel { fill: #888888; font-family: monospace; font-size: 11px; }
+        .fill-normal { fill: #44ff88; opacity: 0.4; }
+        .fill-bad { fill: #ff8844; opacity: 0.4; }
+        .env-normal { fill: none; stroke: #44ff88; stroke-width: 1.5; }
+        .env-bad { fill: none; stroke: #ff8844; stroke-width: 1.5; }
+        .dr-label { fill: #ffffff; font-family: monospace; font-size: 13px; font-weight: bold; }
+    </style>
+
+    <rect class="bg" width="800" height="400"/>
+    <text class="title" x="400" y="30" text-anchor="middle">Dynamic Range: Crest Factor</text>
+
+    <!-- Left panel: Dynamic Master -->
+    <g transform="translate(50, 60)">
+        <text class="label" x="150" y="0" text-anchor="middle">Dynamic Master</text>
+
+        <!-- Ceiling lines -->
+        <line class="ceiling" x1="0" y1="20" x2="300" y2="20"/>
+        <line class="ceiling" x1="0" y1="190" x2="300" y2="190"/>
+        <text class="ceiling-label" x="305" y="24">0 dBFS</text>
+
+        <!-- Center axis -->
+        <line class="axis" x1="0" y1="105" x2="300" y2="105"/>
+
+        <!-- Dynamic waveform envelope (varied amplitude) -->
+        <path class="fill-normal" d="
+            M 0,85 L 20,70 L 40,90 L 60,55 L 80,75 L 100,40
+            L 120,65 L 140,50 L 160,80 L 180,35 L 200,70
+            L 220,55 L 240,85 L 260,60 L 280,75 L 300,90
+            L 300,120 L 280,135 L 260,150 L 240,125 L 220,155
+            L 200,140 L 180,175 L 160,130 L 140,160 L 120,145
+            L 100,170 L 80,135 L 60,155 L 40,120 L 20,140 L 0,125 Z
+        "/>
+        <path class="env-normal" d="
+            M 0,85 L 20,70 L 40,90 L 60,55 L 80,75 L 100,40
+            L 120,65 L 140,50 L 160,80 L 180,35 L 200,70
+            L 220,55 L 240,85 L 260,60 L 280,75 L 300,90
+        "/>
+        <path class="env-normal" d="
+            M 0,125 L 20,140 L 40,120 L 60,155 L 80,135 L 100,170
+            L 120,145 L 140,160 L 160,130 L 180,175 L 200,140
+            L 220,155 L 240,125 L 260,150 L 280,135 L 300,120
+        "/>
+
+        <!-- DR score -->
+        <text class="dr-label" x="150" y="218" text-anchor="middle" fill="#44ff88">DR14</text>
+        <text class="sublabel" x="150" y="235" text-anchor="middle">Wide dynamic variation &#x2014; peaks and quiet passages</text>
+    </g>
+
+    <!-- Right panel: Brick-Walled -->
+    <g transform="translate(450, 60)">
+        <text class="label" x="150" y="0" text-anchor="middle">Brick-Walled Master</text>
+
+        <!-- Ceiling lines -->
+        <line class="ceiling" x1="0" y1="20" x2="300" y2="20"/>
+        <line class="ceiling" x1="0" y1="190" x2="300" y2="190"/>
+        <text class="ceiling-label" x="305" y="24">0 dBFS</text>
+
+        <!-- Center axis -->
+        <line class="axis" x1="0" y1="105" x2="300" y2="105"/>
+
+        <!-- Compressed waveform envelope (flat, near ceiling) -->
+        <path class="fill-bad" d="
+            M 0,28 L 20,26 L 40,29 L 60,25 L 80,28 L 100,24
+            L 120,27 L 140,25 L 160,28 L 180,24 L 200,27
+            L 220,25 L 240,28 L 260,26 L 280,27 L 300,25
+            L 300,185 L 280,183 L 260,184 L 240,182 L 220,185
+            L 200,183 L 180,186 L 160,182 L 140,185 L 120,183
+            L 100,186 L 80,182 L 60,185 L 40,181 L 20,184 L 0,182 Z
+        "/>
+        <path class="env-bad" d="
+            M 0,28 L 20,26 L 40,29 L 60,25 L 80,28 L 100,24
+            L 120,27 L 140,25 L 160,28 L 180,24 L 200,27
+            L 220,25 L 240,28 L 260,26 L 280,27 L 300,25
+        "/>
+        <path class="env-bad" d="
+            M 0,182 L 20,184 L 40,181 L 60,185 L 80,182 L 100,186
+            L 120,183 L 140,185 L 160,182 L 180,186 L 200,183
+            L 220,185 L 240,182 L 260,184 L 280,183 L 300,185
+        "/>
+
+        <!-- DR score -->
+        <text class="dr-label" x="150" y="218" text-anchor="middle" fill="#ff8844">DR4</text>
+        <text class="sublabel" x="150" y="235" text-anchor="middle">No dynamics &#x2014; loudness war casualty</text>
+    </g>
+
+    <!-- Bottom legend -->
+    <g transform="translate(50, 340)">
+        <rect x="0" y="0" width="12" height="12" fill="#44ff88"/>
+        <text class="sublabel" x="20" y="10">Dynamic (DR12+: excellent)</text>
+
+        <rect x="230" y="0" width="12" height="12" fill="#ff8844"/>
+        <text class="sublabel" x="250" y="10">Compressed (DR4: severe)</text>
+
+        <rect x="440" y="0" width="12" height="12" fill="#ff4444" opacity="0.3"/>
+        <text class="sublabel" x="460" y="10">Digital ceiling (0 dBFS)</text>
+    </g>
+
+    <text class="sublabel" x="400" y="380" text-anchor="middle">Detection: crest factor per TT DR methodology. Mild: DR8 | Moderate: DR6 | Severe: DR4</text>
+</svg>

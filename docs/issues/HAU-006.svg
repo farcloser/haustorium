@@ -1,0 +1,108 @@
+<svg viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
+    <style>
+        .bg { fill: #1a1a2e; }
+        .grid { stroke: #2a2a4e; stroke-width: 1; }
+        .axis { stroke: #4a4a6e; stroke-width: 2; }
+        .label { fill: #ffffff; font-family: sans-serif; font-size: 14px; }
+        .title { fill: #ffffff; font-family: sans-serif; font-size: 18px; font-weight: bold; }
+        .sublabel { fill: #888888; font-family: monospace; font-size: 11px; }
+        .ch-label { fill: #666666; font-family: monospace; font-size: 10px; font-weight: bold; }
+        .wave-l { fill: none; stroke: #44ff88; stroke-width: 1.5; }
+        .wave-r { fill: none; stroke: #44ff88; stroke-width: 1.5; opacity: 0.6; stroke-dasharray: 5,3; }
+        .wave-sum { fill: none; stroke: #44ff88; stroke-width: 2; }
+        .wave-l-bad { fill: none; stroke: #ff8844; stroke-width: 1.5; }
+        .wave-r-bad { fill: none; stroke: #ff8844; stroke-width: 1.5; opacity: 0.6; stroke-dasharray: 5,3; }
+        .wave-sum-bad { fill: none; stroke: #ff4444; stroke-width: 2; }
+    </style>
+
+    <rect class="bg" width="800" height="400"/>
+    <text class="title" x="400" y="30" text-anchor="middle">Phase Issues: Mono Cancellation</text>
+
+    <!-- Left panel: Mono-Compatible -->
+    <g transform="translate(50, 55)">
+        <text class="label" x="150" y="0" text-anchor="middle">Mono-Compatible Mix</text>
+
+        <!-- L channel -->
+        <text class="ch-label" x="-5" y="38" text-anchor="end">L</text>
+        <line class="axis" x1="0" y1="35" x2="300" y2="35"/>
+        <path class="wave-l" d="
+            M 0,35 C 19,15 37,15 56,35 C 75,55 93,55 112,35
+            C 131,15 149,15 168,35 C 187,55 205,55 224,35
+            C 243,15 261,15 280,35 L 300,35
+        "/>
+
+        <!-- R channel -->
+        <text class="ch-label" x="-5" y="83" text-anchor="end">R</text>
+        <line class="axis" x1="0" y1="80" x2="300" y2="80"/>
+        <path class="wave-r" d="
+            M 0,80 C 15,62 33,60 56,80 C 75,96 97,100 112,80
+            C 131,62 145,58 168,80 C 187,96 209,100 224,80
+            C 243,62 257,58 280,80 L 300,80
+        "/>
+
+        <!-- Divider -->
+        <line class="grid" x1="0" y1="110" x2="300" y2="110"/>
+        <text class="ch-label" x="-5" y="147" text-anchor="end">L+R</text>
+
+        <!-- Sum: strong (both add constructively) -->
+        <line class="axis" x1="0" y1="145" x2="300" y2="145"/>
+        <path class="wave-sum" d="
+            M 0,145 C 17,110 37,108 56,145 C 75,178 93,182 112,145
+            C 131,110 149,108 168,145 C 187,178 205,182 224,145
+            C 243,110 261,108 280,145 L 300,145
+        "/>
+
+        <text class="sublabel" x="150" y="200" text-anchor="middle">Stereo RMS &#x2248; Mono RMS (energy preserved)</text>
+    </g>
+
+    <!-- Right panel: Phase-Problematic -->
+    <g transform="translate(450, 55)">
+        <text class="label" x="150" y="0" text-anchor="middle">Phase-Problematic Mix</text>
+
+        <!-- L channel -->
+        <text class="ch-label" x="-5" y="38" text-anchor="end">L</text>
+        <line class="axis" x1="0" y1="35" x2="300" y2="35"/>
+        <path class="wave-l-bad" d="
+            M 0,35 C 19,15 37,15 56,35 C 75,55 93,55 112,35
+            C 131,15 149,15 168,35 C 187,55 205,55 224,35
+            C 243,15 261,15 280,35 L 300,35
+        "/>
+
+        <!-- R channel (mostly out of phase) -->
+        <text class="ch-label" x="-5" y="83" text-anchor="end">R</text>
+        <line class="axis" x1="0" y1="80" x2="300" y2="80"/>
+        <path class="wave-r-bad" d="
+            M 0,80 C 19,97 37,98 56,80 C 75,62 93,60 112,80
+            C 131,97 149,98 168,80 C 187,62 205,60 224,80
+            C 243,97 261,98 280,80 L 300,80
+        "/>
+
+        <!-- Divider -->
+        <line class="grid" x1="0" y1="110" x2="300" y2="110"/>
+        <text class="ch-label" x="-5" y="147" text-anchor="end">L+R</text>
+
+        <!-- Sum: weak (partial cancellation) -->
+        <line class="axis" x1="0" y1="145" x2="300" y2="145"/>
+        <path class="wave-sum-bad" d="
+            M 0,145 C 19,140 37,139 56,145 C 75,151 93,152 112,145
+            C 131,140 149,139 168,145 C 187,151 205,152 224,145
+            C 243,140 261,139 280,145 L 300,145
+        "/>
+
+        <!-- Cancellation annotation -->
+        <text fill="#ff4444" font-family="monospace" font-size="9px" x="305" y="148">&#x2248; 0</text>
+
+        <text class="sublabel" x="150" y="200" text-anchor="middle">Mono RMS &lt;&lt; Stereo RMS (6+ dB cancellation)</text>
+    </g>
+
+    <!-- Bottom legend -->
+    <g transform="translate(50, 340)">
+        <rect x="0" y="0" width="12" height="12" fill="#44ff88"/>
+        <text class="sublabel" x="20" y="10">Mono-compatible (energy preserved in sum)</text>
+
+        <rect x="310" y="0" width="12" height="12" fill="#ff4444"/>
+        <text class="sublabel" x="330" y="10">Phase cancellation (energy lost in sum)</text>
+    </g>
+
+    <text class="sublabel" x="400" y="380" text-anchor="middle">Detection: cancellation = stereo RMS &#x2212; mono RMS (dB). Mild: 3 dB | Moderate: 6 dB | Severe: 10 dB</text>
+</svg>

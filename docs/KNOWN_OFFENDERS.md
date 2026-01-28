@@ -8,7 +8,16 @@ This is seemingly very hard to solve, as what was recorded is virtually indistin
 
 Hum detection still fails a lot on legit music that sounds... like a hum...
 
+> Status: confirmed
+
+New wave / french pop from the 90s.
+Constant low frequency synthesizer.
+
+/Volumes/Anisotope/gill/Terrible, Terrible Music/Indochine/1991 - Le Birthday album _ 1981-1991/[1991-CD-BMG France-262 132-4007192621323]/04-19 Le Péril jaune.flac
+
 > Status: maybe bug
+
+
 
 Again getting punked by Zorn.
 Sounds like legitimate music being reported as hum.
