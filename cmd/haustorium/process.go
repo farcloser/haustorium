@@ -49,11 +49,6 @@ func processCommand() *cli.Command {
 				Usage:   "Output format: console, json, markdown",
 				Value:   "console",
 			},
-			&cli.BoolFlag{
-				Name:    "verbose",
-				Aliases: []string{"V"},
-				Usage:   "Print all raw analyzer data alongside the summary",
-			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			if cmd.NArg() != 1 {
@@ -119,7 +114,7 @@ func processCommand() *cli.Command {
 				return fmt.Errorf("analysis failed: %w", err)
 			}
 
-			return outputResult(filePath, result, cmd.String("format"), cmd.Bool("verbose"))
+			return outputResult(filePath, result, cmd.String("format"))
 		},
 	}
 }

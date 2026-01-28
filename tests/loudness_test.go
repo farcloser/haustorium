@@ -27,7 +27,7 @@ func TestLoudness(t *testing.T) {
 				return &test.Expected{
 					ExitCode: expect.ExitCodeSuccess,
 					Output: expect.All(
-						expectContains("LUFS"),
+						expectContains("integrated_lufs"),
 						expectNoIssue("loudness"),
 					),
 				}
@@ -45,7 +45,7 @@ func TestLoudness(t *testing.T) {
 				return &test.Expected{
 					ExitCode: expect.ExitCodeSuccess,
 					Output: expect.All(
-						expectContains("LUFS"),
+						expectContains("integrated_lufs"),
 						expectNoIssue("loudness"),
 					),
 				}

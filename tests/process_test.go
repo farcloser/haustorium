@@ -37,7 +37,7 @@ func TestProcessCLI(t *testing.T) {
 				return &test.Expected{
 					ExitCode: expect.ExitCodeSuccess,
 					Output: expect.All(
-						expectContains("[clipping]"),
+						expectContains("clipping:"),
 						expectWorstSeverity("no issue"),
 					),
 				}
@@ -61,7 +61,7 @@ func TestProcessCLI(t *testing.T) {
 			Expected: func(_ test.Data, _ test.Helpers) *test.Expected {
 				return &test.Expected{
 					ExitCode: expect.ExitCodeSuccess,
-					Output:   expectContains("Issues found:"),
+					Output:   expectContains("issues:"),
 				}
 			},
 		},
@@ -76,7 +76,7 @@ func TestProcessCLI(t *testing.T) {
 			Expected: func(_ test.Data, _ test.Helpers) *test.Expected {
 				return &test.Expected{
 					ExitCode: expect.ExitCodeSuccess,
-					Output:   expectContains("Issues found:"),
+					Output:   expectContains("issues:"),
 				}
 			},
 		},

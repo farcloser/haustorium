@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"strings"
 
@@ -73,12 +72,6 @@ func analyzeCommand() *cli.Command {
 				Value:   "console",
 			},
 
-			// Output verbosity.
-			&cli.BoolFlag{
-				Name:    "verbose",
-				Aliases: []string{"V"},
-				Usage:   "Print all raw analyzer data alongside the summary",
-			},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			if cmd.NArg() != 1 {
@@ -120,7 +113,7 @@ func analyzeCommand() *cli.Command {
 				return fmt.Errorf("analysis failed: %w", err)
 			}
 
-			return outputResult(inputPath, result, cmd.String("format"), cmd.Bool("verbose"))
+			return outputResult(inputPath, result, cmd.String("format"))
 		},
 	}
 }
@@ -241,238 +234,4 @@ func readerFactory(source string) (haustorium.ReaderFactory, func(), error) {
 	}
 
 	return factory, func() {}, nil
-}
-
-func printResult(filePath string, result *haustorium.Result, verbose bool) {
-	if filePath != "" && filePath != "-" {
-		fmt.Printf("File: %s\n", filePath)
-	}
-
-	fmt.Printf("Issues found: %d (worst severity: %s)\n\n", result.IssueCount, result.WorstSeverity)
-
-	for _, issue := range result.Issues {
-		marker := "  "
-		if issue.Detected {
-			marker = "!!"
-		}
-
-		fmt.Printf("%s [%s] [%s] %s (confidence: %.0f%%)\n",
-			marker, issue.Severity, issue.Check, issue.Summary, issue.Confidence*100)
-	}
-
-	printProperties(result)
-
-	if verbose {
-		printVerbose(result)
-	}
-}
-
-func printProperties(result *haustorium.Result) {
-	var props []string
-
-	if r := result.Loudness; r != nil {
-		props = append(props,
-			fmt.Sprintf("  Loudness:          %.1f LUFS (range: %.1f LU)", r.IntegratedLUFS, r.LoudnessRange),
-			fmt.Sprintf("  Dynamic Range:     DR%d", r.DRScore),
-		)
-	}
-
-	if r := result.TruePeak; r != nil {
-		props = append(props,
-			fmt.Sprintf("  True Peak:         %.1f dBTP", r.TruePeakDb),
-		)
-	}
-
-	if r := result.Spectral; r != nil {
-		props = append(props,
-			fmt.Sprintf("  Spectral Centroid: %.0f Hz", r.SpectralCentroid),
-		)
-	}
-
-	if r := result.Stereo; r != nil {
-		props = append(props,
-			fmt.Sprintf("  Stereo Width:      %s (correlation: %.2f)", stereoWidthLabel(r.Correlation), r.Correlation),
-		)
-	}
-
-	if len(props) == 0 {
-		return
-	}
-
-	fmt.Printf("\nProperties:\n")
-
-	for _, p := range props {
-		fmt.Println(p)
-	}
-}
-
-func stereoWidthLabel(correlation float64) string {
-	switch {
-	case correlation > 0.95:
-		return "Mono/Narrow"
-	case correlation > 0.75:
-		return "Narrow"
-	case correlation > 0.5:
-		return "Normal"
-	case correlation > 0.2:
-		return "Wide"
-	default:
-		return "Very Wide"
-	}
-}
-
-func printVerbose(result *haustorium.Result) {
-	fmt.Println("\n--- Verbose Output ---")
-
-	if reader := result.Clipping; reader != nil {
-		fmt.Println("\n[Clipping]")
-		fmt.Printf("  Events:          %d\n", reader.Events)
-		fmt.Printf("  Clipped samples: %d\n", reader.ClippedSamples)
-		fmt.Printf("  Longest run:     %d samples\n", reader.LongestRun)
-		fmt.Printf("  Total samples:   %d\n", reader.Samples)
-
-		for i, ch := range reader.Channels {
-			fmt.Printf("  Channel %d:       %d events, %d clipped, longest run %d\n",
-				i, ch.Events, ch.ClippedSamples, ch.LongestRun)
-		}
-	}
-
-	if reader := result.Truncation; reader != nil {
-		fmt.Println("\n[Truncation]")
-		fmt.Printf("  Final RMS:       %.1f dB\n", reader.FinalRmsDb)
-		fmt.Printf("  Final peak:      %.1f dB\n", reader.FinalPeakDb)
-		fmt.Printf("  Samples in tail: %d\n", reader.SamplesInTail)
-	}
-
-	if reader := result.BitDepth; reader != nil {
-		fmt.Println("\n[Bit Depth]")
-		fmt.Printf("  Claimed:         %d-bit\n", reader.Claimed)
-		fmt.Printf("  Effective:       %d-bit\n", reader.Effective)
-		fmt.Printf("  Padded:          %v\n", reader.IsPadded)
-		fmt.Printf("  Samples:         %d\n", reader.Samples)
-	}
-
-	if reader := result.Spectral; reader != nil {
-		fmt.Println("\n[Spectral]")
-		fmt.Printf("  Claimed rate:    %d Hz\n", reader.ClaimedRate)
-
-		if reader.IsUpsampled {
-			fmt.Printf("  Upsampled:       yes (from %d Hz)\n", reader.EffectiveRate)
-			fmt.Printf("  Cutoff:          %.0f Hz\n", reader.UpsampleCutoff)
-			fmt.Printf("  Sharpness:       %.1f dB/oct\n", reader.UpsampleSharpness)
-		} else {
-			fmt.Printf("  Upsampled:       no\n")
-		}
-
-		if reader.IsTranscode {
-			fmt.Printf("  Transcode:       yes (%s)\n", reader.LikelyCodec)
-			fmt.Printf("  Cutoff:          %.0f Hz\n", reader.TranscodeCutoff)
-			fmt.Printf("  Sharpness:       %.1f dB/oct\n", reader.TranscodeSharpness)
-		} else {
-			fmt.Printf("  Transcode:       no\n")
-		}
-
-		fmt.Printf("  50 Hz hum:       %v\n", reader.Has50HzHum)
-		fmt.Printf("  60 Hz hum:       %v\n", reader.Has60HzHum)
-
-		if reader.Has50HzHum || reader.Has60HzHum {
-			fmt.Printf("  Hum level:       %.1f dB\n", reader.HumLevelDb)
-		}
-
-		fmt.Printf("  Noise floor:     %.1f dB\n", reader.NoiseFloorDb)
-		fmt.Printf("  Centroid:        %.0f Hz\n", reader.SpectralCentroid)
-		fmt.Printf("  Frames:          %d\n", reader.Frames)
-	}
-
-	if reader := result.DCOffset; reader != nil {
-		fmt.Println("\n[DC Offset]")
-		fmt.Printf("  Overall:         %.6f (%.1f dB)\n", reader.Offset, reader.OffsetDb)
-
-		for i, ch := range reader.Channels {
-			fmt.Printf("  Channel %d:       %.6f\n", i, ch)
-		}
-
-		fmt.Printf("  Samples:         %d\n", reader.Samples)
-	}
-
-	if reader := result.Stereo; reader != nil {
-		fmt.Println("\n[Stereo]")
-		fmt.Printf("  Correlation:     %.4f\n", reader.Correlation)
-		fmt.Printf("  L-R difference:  %.1f dB\n", reader.DifferenceDb)
-		fmt.Printf("  Mono sum:        %.1f dB\n", reader.MonoSumDb)
-		fmt.Printf("  Stereo RMS:      %.1f dB\n", reader.StereoRmsDb)
-		fmt.Printf("  Cancellation:    %.1f dB\n", reader.CancellationDb)
-		fmt.Printf("  Left RMS:        %.1f dB\n", reader.LeftRmsDb)
-		fmt.Printf("  Right RMS:       %.1f dB\n", reader.RightRmsDb)
-		fmt.Printf("  Imbalance:       %.1f dB (%s louder)\n", math.Abs(reader.ImbalanceDb), imbalanceSide(reader.ImbalanceDb))
-		fmt.Printf("  Frames:          %d\n", reader.Frames)
-	}
-
-	if reader := result.Silence; reader != nil {
-		fmt.Println("\n[Silence]")
-		fmt.Printf("  Total duration:  %.1fs\n", reader.TotalDuration)
-		fmt.Printf("  Leading:         %.2fs\n", reader.LeadingSec)
-		fmt.Printf("  Trailing:        %.2fs\n", reader.TrailingSec)
-		fmt.Printf("  Total silence:   %.2fs\n", reader.TotalSilence)
-		fmt.Printf("  Segments:        %d\n", len(reader.Segments))
-
-		for i, seg := range reader.Segments {
-			fmt.Printf("    %d. %.2f-%.2fs (%.2fs) at %.1f dB\n",
-				i+1, seg.StartSec, seg.EndSec, seg.DurationSec, seg.RmsDb)
-		}
-	}
-
-	if reader := result.TruePeak; reader != nil {
-		fmt.Println("\n[True Peak]")
-		fmt.Printf("  True peak:       %.2f dBTP\n", reader.TruePeakDb)
-		fmt.Printf("  Sample peak:     %.2f dB\n", reader.SamplePeakDb)
-		fmt.Printf("  ISP count:       %d\n", reader.ISPCount)
-		fmt.Printf("  ISP max:         %.2f dB\n", reader.ISPMaxDb)
-		fmt.Printf("  Frames:          %d\n", reader.Frames)
-	}
-
-	if reader := result.Loudness; reader != nil {
-		fmt.Println("\n[Loudness]")
-		fmt.Printf("  Integrated:      %.1f LUFS\n", reader.IntegratedLUFS)
-		fmt.Printf("  Short-term max:  %.1f LUFS\n", reader.ShortTermMax)
-		fmt.Printf("  Momentary max:   %.1f LUFS\n", reader.MomentaryMax)
-		fmt.Printf("  Loudness range:  %.1f LU\n", reader.LoudnessRange)
-		fmt.Printf("  DR score:        DR%d\n", reader.DRScore)
-		fmt.Printf("  DR value:        %.1f\n", reader.DRValue)
-		fmt.Printf("  Peak:            %.1f dB\n", reader.PeakDb)
-		fmt.Printf("  RMS:             %.1f dB\n", reader.RmsDb)
-		fmt.Printf("  Frames:          %d\n", reader.Frames)
-	}
-
-	if reader := result.Dropout; reader != nil {
-		fmt.Println("\n[Dropouts]")
-		fmt.Printf("  Delta count:     %d\n", reader.DeltaCount)
-		fmt.Printf("  Zero run count:  %d\n", reader.ZeroRunCount)
-		fmt.Printf("  DC jump count:   %d\n", reader.DCJumpCount)
-		fmt.Printf("  Worst:           %.1f dB\n", reader.WorstDb)
-		fmt.Printf("  Frames:          %d\n", reader.Frames)
-
-		if len(reader.Events) > 0 {
-			fmt.Print("  Events:\n")
-
-			for idx, entry := range reader.Events {
-				switch entry.Type {
-				case types.EventZeroRun:
-					fmt.Printf("    %d. %s @ %.3fs ch%d duration=%.1fms\n",
-						idx+1, entry.Type, entry.TimeSec, entry.Channel, entry.DurationMs)
-				default:
-					fmt.Printf("    %d. %s @ %.3fs ch%d severity=%.4f\n",
-						idx+1, entry.Type, entry.TimeSec, entry.Channel, entry.Severity)
-				}
-			}
-		}
-	}
-}
-
-func imbalanceSide(imbalanceDb float64) string {
-	if imbalanceDb >= 0 {
-		return "left"
-	}
-
-	return "right"
 }

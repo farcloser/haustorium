@@ -9,34 +9,39 @@ import (
 )
 
 // expectIssue returns a comparator verifying that the given check was detected with the given severity.
-// It looks for a line matching: !! [<severity>] [<check>].
+// It looks for an issue block containing: check: <check>, detected: true, severity: <severity>.
 func expectIssue(check, severity string) test.Comparator {
 	return func(stdout string, testing tig.T) {
 		testing.Helper()
 
-		pattern := fmt.Sprintf("!! [%s] [%s]", severity, check)
+		checkLine := fmt.Sprintf("check: %s", check)
+		detectedLine := "detected: true"
+		severityLine := fmt.Sprintf("severity: %s", severity)
 
-		if !strings.Contains(stdout, pattern) {
-			testing.Log(
-				fmt.Sprintf("expected issue %q with severity %q not found in output:\n%s", check, severity, stdout),
-			)
-			testing.Fail()
+		if strings.Contains(stdout, checkLine) &&
+			strings.Contains(stdout, detectedLine) &&
+			strings.Contains(stdout, severityLine) {
+			return
 		}
+
+		testing.Log(
+			fmt.Sprintf("expected issue %q with severity %q not found in output:\n%s", check, severity, stdout),
+		)
+		testing.Fail()
 	}
 }
 
 // expectIssueDetected returns a comparator verifying that the given check was detected (any severity).
-// It looks for a line matching: !! [*] [<check>].
+// It looks for an issue block containing: check: <check>, detected: true.
 func expectIssueDetected(check string) test.Comparator {
 	return func(stdout string, testing tig.T) {
 		testing.Helper()
 
-		marker := fmt.Sprintf("] [%s]", check)
+		checkLine := fmt.Sprintf("check: %s", check)
+		detectedLine := "detected: true"
 
-		for _, line := range strings.Split(stdout, "\n") {
-			if strings.Contains(line, marker) && strings.HasPrefix(strings.TrimSpace(line), "!!") {
-				return
-			}
+		if strings.Contains(stdout, checkLine) && strings.Contains(stdout, detectedLine) {
+			return
 		}
 
 		testing.Log(fmt.Sprintf("expected issue %q to be detected but was not found in output:\n%s", check, stdout))
@@ -45,34 +50,58 @@ func expectIssueDetected(check string) test.Comparator {
 }
 
 // expectNoIssue returns a comparator verifying that the given check was NOT detected.
-// The check line should exist but NOT start with "!!".
+// It looks for check: <check> paired with detected: false, or absence of the check entirely.
 func expectNoIssue(check string) test.Comparator {
 	return func(stdout string, testing tig.T) {
 		testing.Helper()
 
-		marker := fmt.Sprintf("] [%s]", check)
+		checkLine := fmt.Sprintf("check: %s", check)
 
-		for _, line := range strings.Split(stdout, "\n") {
-			if strings.Contains(line, marker) {
-				if strings.HasPrefix(strings.TrimSpace(line), "!!") {
-					testing.Log(fmt.Sprintf("expected no issue for %q but found: %s", check, line))
-					testing.Fail()
-				}
-
-				return
-			}
+		if !strings.Contains(stdout, checkLine) {
+			// Check not present at all — that's fine, means it wasn't run.
+			return
 		}
 
-		// Check line not present at all — that's fine, means it wasn't run.
+		detectedLine := "detected: true"
+		if strings.Contains(stdout, detectedLine) {
+			// Need to verify this "detected: true" belongs to the same check.
+			// Parse issue blocks to find the right one.
+			if issueBlockContains(stdout, check, "detected: true") {
+				testing.Log(fmt.Sprintf("expected no issue for %q but it was detected in output:\n%s", check, stdout))
+				testing.Fail()
+			}
+		}
 	}
 }
 
-// expectWorstSeverity returns a comparator verifying the worst severity in the header line.
+// issueBlockContains checks whether an issue block for the given check contains the target string.
+// It scans for "check: <check>" and then looks in adjacent lines for the target.
+func issueBlockContains(stdout, check, target string) bool {
+	lines := strings.Split(stdout, "\n")
+	checkLine := fmt.Sprintf("check: %s", check)
+
+	for i, line := range lines {
+		if !strings.Contains(line, checkLine) {
+			continue
+		}
+
+		// Search nearby lines (within the same issue block).
+		for j := max(0, i-5); j < min(len(lines), i+5); j++ {
+			if strings.Contains(lines[j], target) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// expectWorstSeverity returns a comparator verifying the worst severity in the summary.
 func expectWorstSeverity(severity string) test.Comparator {
 	return func(stdout string, testing tig.T) {
 		testing.Helper()
 
-		expected := fmt.Sprintf("worst severity: %s", severity)
+		expected := fmt.Sprintf("worst_severity: %s", severity)
 
 		if !strings.Contains(stdout, expected) {
 			testing.Log(fmt.Sprintf("expected worst severity %q not found in output:\n%s", severity, stdout))
