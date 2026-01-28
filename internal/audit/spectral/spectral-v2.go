@@ -264,10 +264,11 @@ func detectNoiseFloorV2(
 	quietCount := max(len(windowRMS)/5, 1)
 	quietIndices := findQuietestWindows(windowRMS, quietCount)
 
-	// RMS gate: check if quiet windows are actually quiet.
-	// -50 dBFS threshold — below this, we're in recording-medium noise territory
-	// where HF measurement reflects dither/ADC noise, not a quality problem.
-	// Above this, quiet passages still contain enough signal for meaningful noise floor measurement.
+	// RMS gate: check if quiet windows have enough signal for meaningful measurement.
+	// Below -50 dBFS, we're in recording-medium noise territory (dither, ADC noise)
+	// where the HF measurement reflects the medium, not a quality problem.
+	// Above -50 dBFS, quiet passages still contain enough musical signal for the
+	// quiet-window HF measurement to be more accurate than the full-track average.
 	const quietGateDbFS = -50.0
 
 	var quietRMSSum float64
@@ -282,7 +283,7 @@ func detectNoiseFloorV2(
 		quietRMSDb = 20 * math.Log10(avgQuietRMS)
 	}
 
-	useQuietWindows := quietRMSDb < quietGateDbFS
+	useQuietWindows := quietRMSDb > quietGateDbFS
 
 	var hfDb float64
 
