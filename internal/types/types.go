@@ -5,7 +5,7 @@ type BitDepth uint
 
 const (
 	Depth16 BitDepth = 16
-	Depth24 BitDepth = 64
+	Depth24 BitDepth = 24
 	Depth32 BitDepth = 32
 )
 

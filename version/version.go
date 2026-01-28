@@ -5,6 +5,7 @@ var (
 	version = "0.1.0-dev"
 	name    = "haustorium"
 	commit  = "undefined"
+	date    = "undefined"
 )
 
 // Commit returns the compile time commit.
@@ -20,4 +21,9 @@ func Version() string {
 // Name returns the compile time name.
 func Name() string {
 	return name
+}
+
+// Date returns the compile time build date.
+func Date() string {
+	return date
 }

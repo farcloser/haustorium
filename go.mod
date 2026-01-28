@@ -3,13 +3,13 @@ module github.com/farcloser/haustorium
 go 1.25.6
 
 require (
-	// Runtime dependencies
-	github.com/farcloser/primordium v0.0.0-20260124100238-d4b3742eab1c
-	github.com/urfave/cli/v3 v3.6.2
-	gonum.org/v1/gonum v0.17.0
 	// Testing dependencies
 	github.com/containerd/nerdctl/mod/tigron v0.0.0-20260121031139-a630881afd01
-	github.com/farcloser/agar v0.0.0
+	github.com/farcloser/agar v0.0.0-20260127201813-e4cfb90faa46
+	// Runtime dependencies
+	github.com/farcloser/primordium v0.0.0-20260128062542-c661940b809b
+	github.com/urfave/cli/v3 v3.6.2
+	gonum.org/v1/gonum v0.17.0
 )
 
 require (
