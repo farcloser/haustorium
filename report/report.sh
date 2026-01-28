@@ -148,3 +148,7 @@ gzip -kf "$output_file"
 echo ""
 echo "Done: $total files in ${minutes}m ${seconds}s ($failed failed)"
 echo "Report written to $output_file (and ${output_file}.gz)"
+
+# Print digest summary to stderr
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+"${script_dir}/digest.sh" "$output_file" >&2

@@ -112,8 +112,8 @@ func AnalyzeV2(r io.Reader, format types.PCMFormat, opts Options) (*types.Spectr
 	// === Hum detection V2 (with variance) ===
 	detectHumV2(result, windowMagnitudes, binHz, refLevel)
 
-	// === Noise floor V2 (quiet passages + flatness) ===
-	detectNoiseFloorV2(result, windowMagnitudes, windowRMS, binHz, nyquist, refLevel, opts)
+	// === Noise floor V2 (quiet-window HF + full-track reference + RMS gate) ===
+	detectNoiseFloorV2(result, windowMagnitudes, windowRMS, magDb, binHz, nyquist, refLevel, opts)
 
 	// === Spectral centroid ===
 	result.SpectralCentroid = calculateCentroid(avgMagnitude, binHz)
@@ -225,14 +225,21 @@ func detectHumFrequencyV2(windowMagnitudes [][]float64, fundamental, binHz float
 	return mean, cv
 }
 
-// detectNoiseFloorV2 measures noise floor during quiet passages and checks spectral flatness.
-// HF energy is measured from the quietest windows to expose the true noise floor without
-// signal masking. The reference level comes from the full-track average (1-10 kHz) to provide
-// a stable baseline that doesn't collapse during sparse passages.
+// detectNoiseFloorV2 measures noise floor using quiet-window HF with full-track reference,
+// gated by an absolute RMS threshold on the quiet windows.
+//
+// Strategy:
+//   - HF energy (14-18 kHz) is measured from the quietest 20% of windows to expose the true
+//     noise floor without signal masking.
+//   - Reference level (1-10 kHz) comes from the full-track average for a stable baseline.
+//   - RMS gate: if the quiet windows are not actually quiet (above -40 dBFS), they contain
+//     signal, not noise. In that case, fall back to full-track HF measurement.
+//   - Spectral flatness guard: suppress detection when HF energy is tonal (music, not noise).
 func detectNoiseFloorV2(
 	result *types.SpectralResult,
 	windowMagnitudes [][]float64,
 	windowRMS []float64,
+	magDb []float64,
 	binHz, nyquist, refLevel float64,
 	opts Options,
 ) {
@@ -242,17 +249,7 @@ func detectNoiseFloorV2(
 		return
 	}
 
-	// Find the quietest 20% of windows (or at least 1).
-	quietCount := max(len(windowRMS)/5, 1)
-	quietIndices := findQuietestWindows(windowRMS, quietCount)
-
-	if len(quietIndices) == 0 {
-		result.NoiseFloorDb = -120
-
-		return
-	}
-
-	// Compute HF band boundaries.
+	// HF band boundaries.
 	binCount := len(windowMagnitudes[0])
 	hfStart := int(14000 / binHz)
 	hfEnd := int(min(18000, nyquist-500) / binHz)
@@ -263,49 +260,98 @@ func detectNoiseFloorV2(
 		return
 	}
 
-	var (
-		hfSum       float64
-		flatnessSum float64
-	)
+	// Find the quietest 20% of windows (or at least 1).
+	quietCount := max(len(windowRMS)/5, 1)
+	quietIndices := findQuietestWindows(windowRMS, quietCount)
 
-	hfBins := hfEnd - hfStart
+	// RMS gate: check if quiet windows are actually quiet.
+	// -50 dBFS threshold — below this, we're in recording-medium noise territory
+	// where HF measurement reflects dither/ADC noise, not a quality problem.
+	// Above this, quiet passages still contain enough signal for meaningful noise floor measurement.
+	const quietGateDbFS = -50.0
 
+	var quietRMSSum float64
 	for _, wi := range quietIndices {
-		mag := windowMagnitudes[wi]
-
-		// Average HF level (14-18 kHz) from quiet windows.
-		var bandSum float64
-		for i := hfStart; i < hfEnd && i < len(mag); i++ {
-			bandSum += mag[i]
-		}
-
-		hfSum += bandSum / float64(hfBins)
-
-		// Spectral flatness in HF band: geometric mean / arithmetic mean.
-		// Approaches 1.0 for noise (flat), lower for tonal content.
-		flatnessSum += spectralFlatness(mag[hfStart:min(hfEnd, len(mag))])
+		quietRMSSum += windowRMS[wi]
 	}
 
-	quietWindowCount := float64(len(quietIndices))
-	avgHF := hfSum / quietWindowCount
-	avgFlatness := flatnessSum / quietWindowCount
+	avgQuietRMS := quietRMSSum / float64(len(quietIndices))
 
-	// HF from quiet windows (exposes true noise), reference from full track (stable baseline).
-	hfDb := -120.0
-	if avgHF > 0 {
-		hfDb = 20*math.Log10(avgHF) - refLevel
+	quietRMSDb := -120.0
+	if avgQuietRMS > 0 {
+		quietRMSDb = 20 * math.Log10(avgQuietRMS)
+	}
+
+	useQuietWindows := quietRMSDb < quietGateDbFS
+
+	var hfDb float64
+
+	if useQuietWindows {
+		// Quiet windows are genuinely quiet — measure HF from them.
+		var hfSum float64
+
+		hfBins := hfEnd - hfStart
+
+		for _, wi := range quietIndices {
+			mag := windowMagnitudes[wi]
+
+			var bandSum float64
+			for i := hfStart; i < hfEnd && i < len(mag); i++ {
+				bandSum += mag[i]
+			}
+
+			hfSum += bandSum / float64(hfBins)
+		}
+
+		avgHF := hfSum / float64(len(quietIndices))
+
+		hfDb = -120.0
+		if avgHF > 0 {
+			hfDb = 20*math.Log10(avgHF) - refLevel
+		}
+	} else {
+		// Quiet windows still contain signal — fall back to full-track HF.
+		hfLevel := bandAverage(magDb, 14000, 18000, binHz)
+		hfDb = hfLevel - refLevel
 	}
 
 	result.NoiseFloorDb = hfDb
 
-	// Only flag as problematic if both elevated AND spectrally flat (actual noise).
-	// Musical content that's just dark gets a pass.
+	// Spectral flatness guard: only flag if HF energy is spectrally flat (actual noise).
+	// Computed from quiet windows when available, full-track magnitudes otherwise.
+	var flatness float64
+
+	if useQuietWindows {
+		var flatnessSum float64
+		for _, wi := range quietIndices {
+			mag := windowMagnitudes[wi]
+			flatnessSum += spectralFlatness(mag[hfStart:min(hfEnd, len(mag))])
+		}
+
+		flatness = flatnessSum / float64(len(quietIndices))
+	} else {
+		// Full-track average magnitude for flatness.
+		avgMag := make([]float64, binCount)
+		for _, wm := range windowMagnitudes {
+			for i := hfStart; i < hfEnd && i < len(wm); i++ {
+				avgMag[i] += wm[i]
+			}
+		}
+
+		wc := float64(len(windowMagnitudes))
+		for i := hfStart; i < hfEnd && i < len(avgMag); i++ {
+			avgMag[i] /= wc
+		}
+
+		flatness = spectralFlatness(avgMag[hfStart:min(hfEnd, binCount)])
+	}
+
 	flatnessCutoff := opts.NoiseFlatnessCutoff
 	if flatnessCutoff == 0 {
 		flatnessCutoff = 0.4
 	}
 
-	if avgFlatness < flatnessCutoff {
+	if flatness < flatnessCutoff {
 		// Not flat enough to be noise; likely just dark recording.
 		// Cap the reported level below the mild threshold to avoid false positive.
 		result.NoiseFloorDb = min(hfDb, -40)
