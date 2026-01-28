@@ -21,8 +21,14 @@ func Detect(r io.ReadSeeker, format types.PCMFormat, windowMs uint) (*types.Trun
 		windowMs = defaultWindowMs
 	}
 
-	bytesPerSample := int(format.BitDepth / 8) //nolint:gosec // bit depth and channel count are small constants
-	tailSamples := format.SampleRate * int(windowMs) / 1000 * int(format.Channels) //nolint:gosec // bit depth and channel count are small constants
+	bytesPerSample := int(
+		format.BitDepth / 8,
+	)
+	tailSamples := format.SampleRate * int(
+		windowMs,
+	) / 1000 * int(
+		format.Channels,
+	)
 	tailBytes := int64(tailSamples * bytesPerSample)
 
 	// Seek to end minus tail size
@@ -64,7 +70,9 @@ func Detect(r io.ReadSeeker, format types.PCMFormat, windowMs uint) (*types.Trun
 	switch format.BitDepth {
 	case types.Depth16:
 		for i := 0; i < len(data); i += 2 {
-			sample := int16(binary.LittleEndian.Uint16(data[i:])) //nolint:gosec // two's complement conversion for signed PCM samples
+			sample := int16(
+				binary.LittleEndian.Uint16(data[i:]),
+			)
 			normalized := float64(sample) / maxVal
 
 			sumSquares += normalized * normalized
@@ -92,7 +100,9 @@ func Detect(r io.ReadSeeker, format types.PCMFormat, windowMs uint) (*types.Trun
 		}
 	case types.Depth32:
 		for i := 0; i < len(data); i += 4 {
-			sample := int32(binary.LittleEndian.Uint32(data[i:])) //nolint:gosec // two's complement conversion for signed PCM samples
+			sample := int32(
+				binary.LittleEndian.Uint32(data[i:]),
+			)
 			normalized := float64(sample) / maxVal
 
 			sumSquares += normalized * normalized

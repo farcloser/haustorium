@@ -190,7 +190,9 @@ func readMonoMixed(reader io.Reader, format types.PCMFormat) ([]float64, error) 
 				for i := 0; i < len(data); i += frameSize {
 					var sum float64
 					for ch := range numChannels {
-						sum += float64(int16(binary.LittleEndian.Uint16(data[i+ch*2:]))) / maxVal //nolint:gosec // two's complement conversion for signed PCM samples
+						sum += float64(
+							int16(binary.LittleEndian.Uint16(data[i+ch*2:])),
+						) / maxVal
 					}
 
 					samples = append(samples, sum/float64(numChannels))
@@ -216,7 +218,9 @@ func readMonoMixed(reader io.Reader, format types.PCMFormat) ([]float64, error) 
 				for i := 0; i < len(data); i += frameSize {
 					var sum float64
 					for ch := range numChannels {
-						sum += float64(int32(binary.LittleEndian.Uint32(data[i+ch*4:]))) / maxVal //nolint:gosec // two's complement conversion for signed PCM samples
+						sum += float64(
+							int32(binary.LittleEndian.Uint32(data[i+ch*4:])),
+						) / maxVal
 					}
 
 					samples = append(samples, sum/float64(numChannels))

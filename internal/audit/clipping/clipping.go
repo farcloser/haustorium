@@ -20,7 +20,7 @@ const (
 )
 
 func Detect(r io.Reader, format types.PCMFormat) (*types.ClippingDetection, error) {
-	bytesPerSample := int(format.BitDepth / 8) //nolint:gosec // bit depth and channel count are small constants
+	bytesPerSample := int(format.BitDepth / 8)         //nolint:gosec // bit depth and channel count are small constants
 	frameSize := bytesPerSample * int(format.Channels) //nolint:gosec // bit depth and channel count are small constants
 	buf := make([]byte, frameSize*4096)
 
@@ -42,7 +42,9 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.ClippingDetection, erro
 			case types.Depth16:
 				for i := 0; i < len(data); i += 2 {
 					channel := sampleIndex % numChannels
-					sample := int16(binary.LittleEndian.Uint16(data[i:])) //nolint:gosec // two's complement conversion for signed PCM samples
+					sample := int16(
+						binary.LittleEndian.Uint16(data[i:]),
+					)
 					result.Samples++
 					sampleIndex++
 
@@ -105,7 +107,9 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.ClippingDetection, erro
 			case types.Depth32:
 				for i := 0; i < len(data); i += 4 {
 					channel := sampleIndex % numChannels
-					sample := int32(binary.LittleEndian.Uint32(data[i:])) //nolint:gosec // two's complement conversion for signed PCM samples
+					sample := int32(
+						binary.LittleEndian.Uint32(data[i:]),
+					)
 					result.Samples++
 					sampleIndex++
 

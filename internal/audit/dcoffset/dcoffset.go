@@ -13,7 +13,7 @@ import (
 )
 
 func Detect(reader io.Reader, format types.PCMFormat) (*types.DCOffsetResult, error) {
-	bytesPerSample := int(format.BitDepth / 8) //nolint:gosec // bit depth and channel count are small constants
+	bytesPerSample := int(format.BitDepth / 8)         //nolint:gosec // bit depth and channel count are small constants
 	frameSize := bytesPerSample * int(format.Channels) //nolint:gosec // bit depth and channel count are small constants
 	buf := make([]byte, frameSize*4096)
 
@@ -44,7 +44,9 @@ func Detect(reader io.Reader, format types.PCMFormat) (*types.DCOffsetResult, er
 			case types.Depth16:
 				for i := 0; i < len(data); i += 2 {
 					channel := (i / 2) % numChannels
-					sample := float64(int16(binary.LittleEndian.Uint16(data[i:]))) / maxVal //nolint:gosec // two's complement conversion for signed PCM samples
+					sample := float64(
+						int16(binary.LittleEndian.Uint16(data[i:])),
+					) / maxVal
 					channelSums[channel] += sample
 					samples++
 				}
@@ -64,7 +66,9 @@ func Detect(reader io.Reader, format types.PCMFormat) (*types.DCOffsetResult, er
 			case types.Depth32:
 				for i := 0; i < len(data); i += 4 {
 					channel := (i / 4) % numChannels
-					sample := float64(int32(binary.LittleEndian.Uint32(data[i:]))) / maxVal //nolint:gosec // two's complement conversion for signed PCM samples
+					sample := float64(
+						int32(binary.LittleEndian.Uint32(data[i:])),
+					) / maxVal
 					channelSums[channel] += sample
 					samples++
 				}

@@ -467,6 +467,7 @@ func detectTranscodeV2(
 	// If no transcode detected, nothing more to do.
 	if !result.IsTranscode {
 		result.TranscodeConfidence = 0
+
 		return
 	}
 
@@ -592,6 +593,7 @@ func measureCutoffConsistency(windowMagnitudes [][]float64, targetCutoff, binHz 
 	mean := sum / float64(len(cutoffs))
 
 	var varianceSum float64
+
 	for _, c := range cutoffs {
 		d := c - mean
 		varianceSum += d * d

@@ -237,8 +237,6 @@ ISPs at 11kHz (44.1kHz source) get weight 1.0, ultrasonic ISPs get lower weights
 
 **Implementation:** Requires FFT analysis around ISP locations to estimate frequency content causing the ISP.
 
-**Effort:** ~1-2 days
-
 #### Musical Context Awareness (Low priority)
 
 Correlate ISPs with signal level:
@@ -246,35 +244,89 @@ Correlate ISPs with signal level:
 - ISPs during quiet passages: more severe (audible)
 - Report "unmasked ISP count" for ISPs occurring below -20dBFS
 
-**Effort:** ~1-2 days
-
-### New Fields for `TruePeakResult`
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `ISPDensityPeak` | float64 | Worst-case ISPs per second (1-second window) |
-| `ISPDensityAvg` | float64 | Average ISPs per second during active sections |
-| `WeightedSeverity` | float64 | Combined score accounting for frequency, magnitude, density |
-| `ISPsAbove1dB` | uint64 | Count of ISPs with >1dB overshoot |
-| `WorstFrequencyHz` | float64 | Frequency of the most severe ISP |
-
-### Current vs. Improved Severity Reporting
-
-**Current output:**
-```
-inter-sample-peaks: Pervasive ISPs: 60816 events, max overshoot 1.14 dB
-```
-
-**Improved output (proposed):**
-```
-inter-sample-peaks: 60816 ISPs (severity: high)
-  - Peak density: 847/sec at 2:34
-  - 12,403 ISPs >1dB (20%), worst at 11.2kHz
-  - Weighted severity: 0.78 (dense mid-frequency ISPs)
-```
-
 ### References
 
 - [Benchmark Media: Intersample Overs in CD Recordings](https://benchmarkmedia.com/blogs/application_notes/intersample-overs-in-cd-recordings)
 - AES Convention Paper: "Sample-Peak and True-Peak Measurement" (TC Electronic)
 - EBU R128: Loudness normalisation and permitted maximum level of audio signals
+
+---
+
+## Distinguishing Hot Mastering from CD Read Errors
+
+**Status:** Future Work
+**Severity:** Moderate
+**Discovered:** 2026-01-28
+
+### Problem
+
+The clipping detector (HAU-001) flags samples at ±32768 but cannot distinguish between:
+
+1. **Hot mastering** - signal genuinely exceeds max level due to aggressive limiting
+2. **CD read errors** - corrupted data from physical disc damage, scratches, or CD rot
+
+Both produce samples at ±32768, but they have different causes and implications:
+- Hot mastering = audio quality issue (fixable with better master)
+- Read errors = data corruption (need to re-rip from better source)
+
+### Current Detection Overlap
+
+| Detector | Hot mastering | CD read errors |
+|----------|---------------|----------------|
+| **Clipping** | Yes | Yes (can't distinguish) |
+| **Dropout** | No | Partial (only if near-zero context) |
+| **ISP** | Yes | No |
+
+The dropout detector's `isDeltaDropout` check (requires one sample near zero) catches some read errors but not all, and never catches hot mastering clipping.
+
+### Distinguishing Characteristics
+
+| Indicator | Hot mastering | Read error |
+|-----------|---------------|------------|
+| Both channels clip together | Yes | Rarely |
+| Surrounding samples loud (>0.5) | Yes | No |
+| Isolated single samples | Rare | Common |
+| Exactly ±32768 vs ±32767 | Either | Usually -32768 |
+| Clustered at file end (disc edge) | No | Often |
+| Consistent with musical dynamics | Yes | No |
+
+### Case Study: Pat Metheny "The Way Up"
+
+Analysis revealed both issues in the same file:
+- **121 samples at -32768**, **89 at +32767**
+- **65% of errors in final 10 seconds** (250-260s) = outer disc edge damage
+- **Left channel 2x more errors** than right = physical defect pattern
+- Some events show **one channel at -32768 while other is normal** = read error
+- Other events show **both channels approaching max together** = legitimate clipping
+
+### Proposed Solution
+
+Add a "read error" detector or enhance clipping detector to classify:
+
+#### Context Analysis
+
+For each sample at ±32768:
+1. Check if **both channels** hit the limit together (±5 samples) → likely hot mastering
+2. Check if **surrounding samples** (±10) are loud (>0.5 amplitude) → likely hot mastering
+3. Check if sample is **isolated** (neighbors <0.3 amplitude) → likely read error
+4. Check if value is **exactly -32768** (not +32767 or near-max) → suspicious for read error
+
+#### Spatial Analysis
+
+- Track **distribution across file** - clustering at end suggests disc damage
+- Track **channel imbalance** - one channel with more errors suggests physical defect
+
+#### New Fields (Proposed)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `ClippedSamplesHotMaster` | uint64 | Clipped samples consistent with loud mastering |
+| `ClippedSamplesReadError` | uint64 | Clipped samples consistent with data corruption |
+| `ReadErrorConfidence` | float64 | 0.0-1.0 confidence that errors are from disc damage |
+| `WorstErrorRegion` | float64 | Timestamp where read errors are most concentrated |
+
+### Implementation Notes
+
+- Could be integrated into existing clipping detector or as separate pass
+- Requires buffering surrounding samples for context analysis
+- May want to suppress dropout detector when read error is detected (avoid double-reporting)

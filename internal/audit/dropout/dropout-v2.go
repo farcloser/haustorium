@@ -260,7 +260,7 @@ func DetectV2(reader io.Reader, format types.PCMFormat, opts Options) (*types.Dr
 	}
 
 	bytesPerSample := int(format.BitDepth / 8) //nolint:gosec // bit depth and channel count are small constants
-	numChannels := int(format.Channels)       //nolint:gosec // bit depth and channel count are small constants
+	numChannels := int(format.Channels)        //nolint:gosec // bit depth and channel count are small constants
 	frameSize := bytesPerSample * numChannels
 	sampleRate := float64(format.SampleRate)
 
@@ -290,7 +290,9 @@ func DetectV2(reader io.Reader, format types.PCMFormat, opts Options) (*types.Dr
 			case types.Depth16:
 				for i := 0; i < len(data); i += frameSize {
 					for ch := range numChannels {
-						sample := float64(int16(binary.LittleEndian.Uint16(data[i+ch*2:]))) / maxVal //nolint:gosec // two's complement conversion for signed PCM samples
+						sample := float64(
+							int16(binary.LittleEndian.Uint16(data[i+ch*2:])),
+						) / maxVal
 						scan.processSampleV2(ch, sample)
 					}
 
@@ -315,7 +317,9 @@ func DetectV2(reader io.Reader, format types.PCMFormat, opts Options) (*types.Dr
 			case types.Depth32:
 				for i := 0; i < len(data); i += frameSize {
 					for ch := range numChannels {
-						sample := float64(int32(binary.LittleEndian.Uint32(data[i+ch*4:]))) / maxVal //nolint:gosec // two's complement conversion for signed PCM samples
+						sample := float64(
+							int32(binary.LittleEndian.Uint32(data[i+ch*4:])),
+						) / maxVal
 						scan.processSampleV2(ch, sample)
 					}
 

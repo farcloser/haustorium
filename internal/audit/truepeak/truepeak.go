@@ -122,9 +122,9 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 
 	// Density tracking: count ISPs per 1-second window
 	samplesPerSecond := format.SampleRate
-	windowISPCounts := []uint64{0}   // ISP count for each 1-second window
-	currentWindowISPs := uint64(0)   // ISPs in current window
-	currentWindowStart := uint64(0)  // frame where current window started
+	windowISPCounts := []uint64{0}  // ISP count for each 1-second window
+	currentWindowISPs := uint64(0)  // ISPs in current window
+	currentWindowStart := uint64(0) // frame where current window started
 
 	for {
 		n, err := r.Read(buf)
@@ -136,7 +136,9 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 			case types.Depth16:
 				for i := 0; i < len(data); i += frameSize {
 					for channel := range numChannels {
-						sample := float64(int16(binary.LittleEndian.Uint16(data[i+channel*2:]))) / maxVal //nolint:gosec // two's complement conversion for signed PCM samples
+						sample := float64(
+							int16(binary.LittleEndian.Uint16(data[i+channel*2:])),
+						) / maxVal
 
 						// Track sample peak
 						absSample := math.Abs(sample)
@@ -174,9 +176,11 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 								if overshoot > 0.5 {
 									ispsAboveHalfdB++
 								}
+
 								if overshoot > 1.0 {
 									ispsAbove1dB++
 								}
+
 								if overshoot > 2.0 {
 									ispsAbove2dB++
 								}
@@ -236,9 +240,11 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 								if overshoot > 0.5 {
 									ispsAboveHalfdB++
 								}
+
 								if overshoot > 1.0 {
 									ispsAbove1dB++
 								}
+
 								if overshoot > 2.0 {
 									ispsAbove2dB++
 								}
@@ -257,7 +263,9 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 			case types.Depth32:
 				for i := 0; i < len(data); i += frameSize {
 					for channel := range numChannels {
-						sample := float64(int32(binary.LittleEndian.Uint32(data[i+channel*4:]))) / maxVal //nolint:gosec // two's complement conversion for signed PCM samples
+						sample := float64(
+							int32(binary.LittleEndian.Uint32(data[i+channel*4:])),
+						) / maxVal
 
 						absSample := math.Abs(sample)
 						if absSample > samplePeak {
@@ -290,9 +298,11 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 								if overshoot > 0.5 {
 									ispsAboveHalfdB++
 								}
+
 								if overshoot > 1.0 {
 									ispsAbove1dB++
 								}
+
 								if overshoot > 2.0 {
 									ispsAbove2dB++
 								}
@@ -337,8 +347,10 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 	}
 
 	// Calculate density metrics
-	var ispDensityPeak float64
-	var worstDensitySec float64
+	var (
+		ispDensityPeak  float64
+		worstDensitySec float64
+	)
 
 	for i, count := range windowISPCounts {
 		density := float64(count) // ISPs per second (window is 1 second)
@@ -349,6 +361,7 @@ func Detect(r io.Reader, format types.PCMFormat) (*types.TruePeakResult, error) 
 	}
 
 	var ispDensityAvg float64
+
 	if totalFrames > 0 {
 		durationSec := float64(totalFrames) / float64(samplesPerSecond)
 		if durationSec > 0 {

@@ -655,7 +655,11 @@ func interpretResults(result *Result, opts Options) {
 
 	// Fake Bit Depth (binary detection, no bands)
 	if result.BitDepth != nil && opts.Checks&CheckFakeBitDepth != 0 {
-		detected := int(result.BitDepth.Effective) < int(result.BitDepth.Claimed) //nolint:gosec // audio format values are small constants
+		detected := int(
+			result.BitDepth.Effective,
+		) < int(
+			result.BitDepth.Claimed,
+		)
 
 		var (
 			severity Severity

@@ -47,7 +47,11 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.SilenceRe
 	// Window size in frames
 	windowFrames := max(format.SampleRate*opts.WindowMs/1000, 1)
 
-	minSilenceFrames := uint64(format.SampleRate) * uint64(opts.MinDurationMs) / 1000 //nolint:gosec // value is non-negative by construction
+	minSilenceFrames := uint64(
+		format.SampleRate,
+	) * uint64(
+		opts.MinDurationMs,
+	) / 1000
 
 	buf := make([]byte, frameSize*4096)
 
@@ -141,7 +145,9 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.SilenceRe
 					var frameSumSq float64
 
 					for ch := range numChannels {
-						sample := float64(int16(binary.LittleEndian.Uint16(data[i+ch*2:]))) / maxVal //nolint:gosec // two's complement conversion for signed PCM samples
+						sample := float64(
+							int16(binary.LittleEndian.Uint16(data[i+ch*2:])),
+						) / maxVal
 						frameSumSq += sample * sample
 					}
 
@@ -182,7 +188,9 @@ func Detect(r io.Reader, format types.PCMFormat, opts Options) (*types.SilenceRe
 					var frameSumSq float64
 
 					for ch := range numChannels {
-						sample := float64(int32(binary.LittleEndian.Uint32(data[i+ch*4:]))) / maxVal //nolint:gosec // two's complement conversion for signed PCM samples
+						sample := float64(
+							int32(binary.LittleEndian.Uint32(data[i+ch*4:])),
+						) / maxVal
 						frameSumSq += sample * sample
 					}
 

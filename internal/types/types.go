@@ -464,12 +464,12 @@ type TruePeakResult struct {
 	Frames       uint64
 
 	// Enhanced ISP analysis
-	ISPDensityPeak   float64 // worst-case ISPs per second (1-second window)
-	ISPDensityAvg    float64 // average ISPs per second across file
-	ISPsAboveHalfdB  uint64  // count of ISPs with >0.5dB overshoot
-	ISPsAbove1dB     uint64  // count of ISPs with >1.0dB overshoot
-	ISPsAbove2dB     uint64  // count of ISPs with >2.0dB overshoot
-	WorstDensitySec  float64 // timestamp (seconds) of peak density window
+	ISPDensityPeak  float64 // worst-case ISPs per second (1-second window)
+	ISPDensityAvg   float64 // average ISPs per second across file
+	ISPsAboveHalfdB uint64  // count of ISPs with >0.5dB overshoot
+	ISPsAbove1dB    uint64  // count of ISPs with >1.0dB overshoot
+	ISPsAbove2dB    uint64  // count of ISPs with >2.0dB overshoot
+	WorstDensitySec float64 // timestamp (seconds) of peak density window
 }
 
 /*

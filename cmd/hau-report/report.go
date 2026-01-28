@@ -33,9 +33,9 @@ import (
 const outputFile = "haustorium-report.jsonl"
 
 var (
-	errNotDirectory     = errors.New("not a directory")
-	errNoAudioFiles     = errors.New("no .flac or .m4a files found")
-	errNoAudioStream    = errors.New("no audio streams found")
+	errNotDirectory      = errors.New("not a directory")
+	errNoAudioFiles      = errors.New("no .flac or .m4a files found")
+	errNoAudioStream     = errors.New("no audio streams found")
 	errInvalidSampleRate = errors.New("invalid sample rate")
 	errInvalidChannels   = errors.New("invalid channel count")
 	errInvalidBitDepth   = errors.New("must be 16, 24, or 32")
@@ -65,7 +65,7 @@ func reportCommand() *cli.Command {
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			if cmd.NArg() != 1 {
-				return fmt.Errorf("expected exactly one argument: folder path")
+				return errors.New("expected exactly one argument: folder path")
 			}
 
 			folder := cmd.Args().First()
@@ -178,6 +178,7 @@ func runReport(ctx context.Context, folder string, redact bool, sourceOverride s
 
 	// Timing breakdown.
 	analyzed := len(files) - failed
+
 	fmt.Fprintf(os.Stderr, "\n--- Timing ---\n")
 	fmt.Fprintf(os.Stderr, "  Wall clock:  %s\n", elapsed.Truncate(time.Millisecond))
 	fmt.Fprintf(os.Stderr, "  ffprobe:     %s (cumulative)\n", totalProbe.Truncate(time.Millisecond))

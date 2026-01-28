@@ -58,8 +58,12 @@ func Analyze(reader io.Reader, format types.PCMFormat) (*types.StereoResult, err
 			switch format.BitDepth {
 			case types.Depth16:
 				for i := 0; i < len(data); i += 4 {
-					left := float64(int16(binary.LittleEndian.Uint16(data[i:]))) / maxVal   //nolint:gosec // two's complement conversion for signed PCM samples
-					right := float64(int16(binary.LittleEndian.Uint16(data[i+2:]))) / maxVal //nolint:gosec // two's complement conversion for signed PCM samples
+					left := float64(
+						int16(binary.LittleEndian.Uint16(data[i:])),
+					) / maxVal
+					right := float64(
+						int16(binary.LittleEndian.Uint16(data[i+2:])),
+					) / maxVal
 
 					sumL += left
 					sumR += right
@@ -106,8 +110,12 @@ func Analyze(reader io.Reader, format types.PCMFormat) (*types.StereoResult, err
 				}
 			case types.Depth32:
 				for i := 0; i < len(data); i += 8 {
-					left := float64(int32(binary.LittleEndian.Uint32(data[i:]))) / maxVal   //nolint:gosec // two's complement conversion for signed PCM samples
-					right := float64(int32(binary.LittleEndian.Uint32(data[i+4:]))) / maxVal //nolint:gosec // two's complement conversion for signed PCM samples
+					left := float64(
+						int32(binary.LittleEndian.Uint32(data[i:])),
+					) / maxVal
+					right := float64(
+						int32(binary.LittleEndian.Uint32(data[i+4:])),
+					) / maxVal
 
 					sumL += left
 					sumR += right

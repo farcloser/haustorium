@@ -12,6 +12,55 @@ import (
 	"github.com/farcloser/haustorium/internal/output"
 )
 
+const docsBaseURL = "https://github.com/farcloser/haustorium/blob/main/docs/issues"
+
+// issueInfo maps checks to their HAU ID and category.
+type issueInfo struct {
+	hauID    string
+	category string
+}
+
+//nolint:gochecknoglobals // configuration data, effectively const
+var issueInfoMap = map[haustorium.Check]issueInfo{
+	// Source authenticity
+	haustorium.CheckFakeBitDepth:   {hauID: "HAU-002", category: "1. Source authenticity"},
+	haustorium.CheckFakeSampleRate: {hauID: "HAU-003", category: "1. Source authenticity"},
+	haustorium.CheckLossyTranscode: {hauID: "HAU-004", category: "1. Source authenticity"},
+	haustorium.CheckFakeStereo:     {hauID: "HAU-005", category: "1. Source authenticity"},
+
+	// Stereo field
+	haustorium.CheckPhaseIssues:      {hauID: "HAU-006", category: "2. Stereo field"},
+	haustorium.CheckInvertedPhase:    {hauID: "HAU-007", category: "2. Stereo field"},
+	haustorium.CheckChannelImbalance: {hauID: "HAU-008", category: "2. Stereo field"},
+
+	// Dynamics & levels
+	haustorium.CheckClipping:         {hauID: "HAU-001", category: "3. Dynamics & levels"},
+	haustorium.CheckInterSamplePeaks: {hauID: "HAU-009", category: "3. Dynamics & levels"},
+	haustorium.CheckDynamicRange:     {hauID: "HAU-010", category: "3. Dynamics & levels"},
+	haustorium.CheckLoudness:         {hauID: "HAU-011", category: "3. Dynamics & levels"},
+	haustorium.CheckDCOffset:         {hauID: "HAU-012", category: "3. Dynamics & levels"},
+
+	// Noise & interference
+	haustorium.CheckHum:        {hauID: "HAU-013", category: "4. Noise & interference"},
+	haustorium.CheckNoiseFloor: {hauID: "HAU-014", category: "4. Noise & interference"},
+
+	// Digital artifacts
+	haustorium.CheckDropouts:       {hauID: "HAU-015", category: "5. Digital artifacts"},
+	haustorium.CheckTruncation:     {hauID: "HAU-016", category: "5. Digital artifacts"},
+	haustorium.CheckSilencePadding: {hauID: "HAU-017", category: "5. Digital artifacts"},
+}
+
+// categoryOrder defines the display order for categories (numbered for sorting).
+//
+//nolint:gochecknoglobals // configuration data, effectively const
+var categoryOrder = []string{
+	"1. Source authenticity",
+	"2. Stereo field",
+	"3. Dynamics & levels",
+	"4. Noise & interference",
+	"5. Digital artifacts",
+}
+
 func outputResult(filePath string, result *haustorium.Result, formatName string, debug bool) error {
 	formatter, err := format.GetFormatter(formatName)
 	if err != nil {
@@ -39,17 +88,35 @@ func buildFriendlyOutput(result *haustorium.Result) map[string]any {
 		"summary": fmt.Sprintf("%d issues found (worst: %s)", result.IssueCount, result.WorstSeverity),
 	}
 
-	// Issues list.
-	if len(result.Issues) > 0 {
-		issues := make([]any, 0, len(result.Issues))
-		for _, issue := range result.Issues {
-			marker := "  "
-			if issue.Detected {
-				marker = "!!"
-			}
+	// Group issues by category.
+	categoryIssues := make(map[string][]any)
 
-			issues = append(issues, fmt.Sprintf("%s [%s] %s: %s (%.0f%% confidence)",
-				marker, issue.Severity, issue.Check, issue.Summary, issue.Confidence*100))
+	for _, issue := range result.Issues {
+		info, ok := issueInfoMap[issue.Check]
+		if !ok {
+			continue
+		}
+
+		marker := "  "
+		if issue.Detected {
+			marker = "!!"
+		}
+
+		docURL := fmt.Sprintf("%s/%s.md", docsBaseURL, info.hauID)
+		line := fmt.Sprintf("%s [%s] %s: %s (%.0f%% confidence) - %s",
+			marker, issue.Severity, issue.Check, issue.Summary, issue.Confidence*100, docURL)
+
+		categoryIssues[info.category] = append(categoryIssues[info.category], line)
+	}
+
+	// Build ordered issues map.
+	if len(categoryIssues) > 0 {
+		issues := make(map[string]any)
+
+		for _, cat := range categoryOrder {
+			if catIssues, ok := categoryIssues[cat]; ok {
+				issues[cat] = catIssues
+			}
 		}
 
 		meta["issues"] = issues
@@ -84,7 +151,11 @@ func buildProperties(result *haustorium.Result) map[string]any {
 	if r := result.Stereo; r != nil {
 		props["stereo_width"] = fmt.Sprintf("%s (correlation: %.2f)", stereoWidthLabel(r.Correlation), r.Correlation)
 		if math.Abs(r.ImbalanceDb) > 0.5 {
-			props["channel_imbalance"] = fmt.Sprintf("%.1f dB (%s louder)", math.Abs(r.ImbalanceDb), imbalanceSide(r.ImbalanceDb))
+			props["channel_imbalance"] = fmt.Sprintf(
+				"%.1f dB (%s louder)",
+				math.Abs(r.ImbalanceDb),
+				imbalanceSide(r.ImbalanceDb),
+			)
 		}
 	}
 

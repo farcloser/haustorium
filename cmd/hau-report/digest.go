@@ -1,10 +1,10 @@
-//nolint:wrapcheck
 package main
 
 import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"slices"
@@ -25,7 +25,7 @@ func digestCommand() *cli.Command {
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			if cmd.NArg() != 1 {
-				return fmt.Errorf("expected exactly one argument: path to report.jsonl")
+				return errors.New("expected exactly one argument: path to report.jsonl")
 			}
 
 			return runDigest(cmd.Args().First(), cmd.String("issue"))
@@ -189,23 +189,23 @@ func printDigest(records []digestRecord) {
 
 //nolint:gochecknoglobals
 var checkKeyMap = map[string]string{
-	"clipping":            "clipping",
-	"truncation":          "truncation",
-	"fake-bit-depth":      "bit_depth",
-	"fake-sample-rate":    "spectral",
-	"lossy-transcode":     "spectral",
-	"dc-offset":           "dc_offset",
-	"fake-stereo":         "stereo",
-	"phase-issues":        "stereo",
-	"inverted-phase":      "stereo",
-	"channel-imbalance":   "stereo",
-	"silence-padding":     "silence",
-	"hum":                 "spectral",
-	"noise-floor":         "spectral",
-	"inter-sample-peaks":  "true_peak",
-	"loudness":            "loudness",
-	"dynamic-range":       "loudness",
-	"dropouts":            "dropouts",
+	"clipping":           "clipping",
+	"truncation":         "truncation",
+	"fake-bit-depth":     "bit_depth",
+	"fake-sample-rate":   "spectral",
+	"lossy-transcode":    "spectral",
+	"dc-offset":          "dc_offset",
+	"fake-stereo":        "stereo",
+	"phase-issues":       "stereo",
+	"inverted-phase":     "stereo",
+	"channel-imbalance":  "stereo",
+	"silence-padding":    "silence",
+	"hum":                "spectral",
+	"noise-floor":        "spectral",
+	"inter-sample-peaks": "true_peak",
+	"loudness":           "loudness",
+	"dynamic-range":      "loudness",
+	"dropouts":           "dropouts",
 }
 
 type issueEntry struct {

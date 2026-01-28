@@ -29,7 +29,7 @@ func Authenticity(reader io.Reader, format types.PCMFormat) (*types.BitDepthAuth
 		}, nil
 	}
 
-	bytesPerSample := int(format.BitDepth / 8) //nolint:gosec // bit depth and channel count are small constants
+	bytesPerSample := int(format.BitDepth / 8)         //nolint:gosec // bit depth and channel count are small constants
 	frameSize := bytesPerSample * int(format.Channels) //nolint:gosec // bit depth and channel count are small constants
 	buf := make([]byte, frameSize*4096)
 
