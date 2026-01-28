@@ -75,7 +75,10 @@ if ! command -v jq &>/dev/null; then
 fi
 
 # --- Collect files ---
-mapfile -t files < <(find "$folder" -type f \( -iname "*.flac" -o -iname "*.m4a" \) | sort)
+files=()
+while IFS= read -r line; do
+  files+=("$line")
+done < <(find "$folder" -type f \( -iname "*.flac" -o -iname "*.m4a" \) | sort)
 
 total=${#files[@]}
 

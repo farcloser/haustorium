@@ -163,8 +163,8 @@ func detectHumFrequencyV2(windowMagnitudes [][]float64, fundamental, binHz float
 
 		var maxSpike float64
 
-		for _, h := range harmonics {
-			freq := fundamental * h
+		for _, harmonic := range harmonics {
+			freq := fundamental * harmonic
 			bin := int(freq / binHz)
 
 			if bin <= 5 || bin >= len(magDb)-5 {
@@ -177,19 +177,28 @@ func detectHumFrequencyV2(windowMagnitudes [][]float64, fundamental, binHz float
 
 			surroundCount := 0
 
-			for i := bin - 5; i <= bin+5; i++ {
-				if i >= 0 && i < len(magDb) && (i < bin-1 || i > bin+1) {
-					surroundSum += magDb[i]
+			for idx := bin - 5; idx <= bin+5; idx++ {
+				if idx >= 0 && idx < len(magDb) && (idx < bin-1 || idx > bin+1) {
+					surroundSum += magDb[idx]
 					surroundCount++
 				}
 			}
 
 			if surroundCount > 0 {
 				surroundAvg := surroundSum / float64(surroundCount)
+				spikeLevel := peakLevel - surroundAvg
 
-				s := peakLevel - surroundAvg
-				if s > maxSpike {
-					maxSpike = s
+				// Peak sharpness: reject broad spectral bumps (synth bass, kick)
+				// that are not genuine tonal spikes.
+				if bin >= 1 && bin < len(magDb)-1 {
+					adjacentAvg := (magDb[bin-1] + magDb[bin+1]) / 2
+					if peakLevel-adjacentAvg < 6 {
+						continue
+					}
+				}
+
+				if spikeLevel > maxSpike {
+					maxSpike = spikeLevel
 				}
 			}
 		}

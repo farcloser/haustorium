@@ -16,7 +16,7 @@ func main() {
 	appl := &cli.Command{
 		Name:    version.Name(),
 		Usage:   "Audio quality analysis tool",
-		Version: version.Version(),
+		Version: version.Version() + " " + version.Commit(),
 		Commands: []*cli.Command{
 			analyzeCommand(),
 			processCommand(),

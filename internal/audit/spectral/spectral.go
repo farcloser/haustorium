@@ -420,24 +420,25 @@ func detectHumFrequency(magDb []float64, fundamental, binHz, refLevel float64) f
 
 	var maxSpike float64
 
-	for _, h := range harmonics {
-		freq := fundamental * h
+	for _, harmonic := range harmonics {
+		freq := fundamental * harmonic
 		bin := int(freq / binHz)
 
 		if bin <= 2 || bin >= len(magDb)-2 {
 			continue
 		}
 
-		// Peak at harmonic
+		// Peak at harmonic.
 		peakLevel := magDb[bin]
-		// Average of surrounding bins (±3 bins, excluding center)
+
+		// Average of surrounding bins (±5 bins, excluding ±1).
 		var surroundSum float64
 
 		surroundCount := 0
 
-		for i := bin - 5; i <= bin+5; i++ {
-			if i >= 0 && i < len(magDb) && (i < bin-1 || i > bin+1) {
-				surroundSum += magDb[i]
+		for idx := bin - 5; idx <= bin+5; idx++ {
+			if idx >= 0 && idx < len(magDb) && (idx < bin-1 || idx > bin+1) {
+				surroundSum += magDb[idx]
 				surroundCount++
 			}
 		}
@@ -445,6 +446,21 @@ func detectHumFrequency(magDb []float64, fundamental, binHz, refLevel float64) f
 		surroundAvg := surroundSum / float64(surroundCount)
 
 		spike := peakLevel - surroundAvg
+
+		// Peak sharpness check: real mains hum is a razor-sharp spectral line
+		// concentrated in 1-2 FFT bins, while musical bass content (synth, kick)
+		// spreads energy across many bins. Require the peak bin to stand at least
+		// 6 dB above the average of its immediate neighbors (±1 bin) to qualify
+		// as a genuine tonal spike rather than a broad spectral bump.
+		if bin >= 1 && bin < len(magDb)-1 {
+			adjacentAvg := (magDb[bin-1] + magDb[bin+1]) / 2
+			sharpness := peakLevel - adjacentAvg
+
+			if sharpness < 6 {
+				continue
+			}
+		}
+
 		if spike > maxSpike {
 			maxSpike = spike
 		}
